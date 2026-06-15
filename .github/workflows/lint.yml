@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 The Eclipse Foundation and pkcs11-go Authors
+# SPDX-License-Identifier: MIT
+#
+name: Lint
+
+# golangci-lint (configured via .golangci.yml) bundles staticcheck, gosec,
+# formatters and more — the modern replacement for the deprecated golint.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  golangci:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # cgo (cryptoki/shim.c) needs a C toolchain; ubuntu-latest ships gcc.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest

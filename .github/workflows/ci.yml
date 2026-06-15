@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & test (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.25', '1.26']
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+
+      - name: Verify generated constants are up to date
+        run: |
+          make generate
+          git diff --exit-code -- cryptoki/zconst.go \
+            || { echo "::error::cryptoki/zconst.go is stale; run 'make generate' and commit."; exit 1; }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: make build
+
+      - name: Unit tests
+        run: make test
+
+  windows-build:
+    name: Build (windows/amd64, cgo)
+    runs-on: windows-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+
+      # windows-latest ships a MinGW gcc on PATH, which cgo uses to compile the
+      # Windows loader path (LoadLibrary/GetProcAddress) in cryptoki/shim.c.
+      - name: Build (cgo)
+        env:
+          CGO_ENABLED: '1'
+        run: go build ./...
+
+      - name: go vet
+        run: go vet ./...
+
+  integration:
+    name: Integration (SoftHSM)
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+
+      - name: Install SoftHSM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsofthsm2
+
+      - name: Run integration tests
+        env:
+          PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
+          PKCS11_PIN: '1234'
+        run: make integration PKCS11_MODULE="$PKCS11_MODULE"
