@@ -141,6 +141,11 @@ clean-headers:
 #   * Run: make release   (commits "Release $VERSION", tags v$VERSION, pushes)
 #   * Or:  make version   (just print the current version)
 #
+# The tag is created with `git tag -s` (GPG/SSH-signed, per your git signing
+# config) so consumers can `git verify-tag v$VERSION`. Pushing the tag triggers
+# .github/workflows/release.yml, which builds a signed source archive with SLSA3
+# provenance. `go get` consumers still rely on go.sum + sum.golang.org.
+#
 # All release logic lives inside these recipes so that ordinary targets never
 # compile or run the version probe. The probe is a throwaway main package that
 # prints cryptoki.Release; it is written, run, and removed within one shell.
@@ -168,7 +173,7 @@ release:
 	@v=$$(go run -tags release version_release.go); rm -f version_release.go; \
 	echo "Committing release $$v"; \
 	git commit -am "Release $$v"; \
-	git tag "v$$v"; \
+	git tag -s "v$$v" -m "Release v$$v"; \
 	echo "Pushing release $$v"; \
 	git push --tags; \
 	git push; \

@@ -293,6 +293,47 @@ make integration PKCS11_MODULE=/path/to/libsofthsmv3.so
 
 [softhsm]: https://github.com/pqctoday-org/pqctoday-hsm
 
+## Releases & verification
+
+As a Go library, integrity for `go get` consumers is already provided by the Go
+module ecosystem: `go.sum` pins content hashes and the public checksum database
+[`sum.golang.org`][sumdb] — a tamper-evident transparency log — is checked on
+every fetch. You do not need to configure anything for that.
+
+On top of that, each release is independently signed and attested:
+
+- **Signed tags.** Release tags are GPG/SSH-signed (`git tag -s`). Verify with:
+  ```bash
+  git verify-tag v1.0.0
+  ```
+- **Signed source archive + SLSA3 provenance.** Pushing a `v*` tag runs
+  [`release.yml`](.github/workflows/release.yml), which attaches to the GitHub
+  Release a source archive (`pkcs11-go-<tag>.tar.gz`), its SHA-256, a keyless
+  [cosign][cosign] signature bundle, and a [SLSA3][slsa] provenance
+  (`*.intoto.jsonl`). These serve auditors and OpenSSF Scorecard; `go get` does
+  not use them. Verify a downloaded archive with:
+  ```bash
+  # cosign signature (keyless, GitHub OIDC identity):
+  cosign verify-blob \
+    --bundle pkcs11-go-v1.0.0.tar.gz.cosign.bundle \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity-regexp '^https://github.com/eclipse-keypont/pkcs11-go/.github/workflows/release.yml@refs/tags/v1.0.0$' \
+    pkcs11-go-v1.0.0.tar.gz
+
+  # SLSA provenance:
+  slsa-verifier verify-artifact \
+    --provenance-path pkcs11-go-v1.0.0.tar.gz.intoto.jsonl \
+    --source-uri github.com/eclipse-keypont/pkcs11-go \
+    --source-tag v1.0.0 \
+    pkcs11-go-v1.0.0.tar.gz
+  ```
+
+Cut a release with `make release` (bump `Release` in `cryptoki/version.go` first).
+
+[sumdb]: https://sum.golang.org
+[cosign]: https://github.com/sigstore/cosign
+[slsa]: https://slsa.dev
+
 ## Status
 
 Implemented and tested against SoftHSMv3 (PKCS #11 v3.2):
