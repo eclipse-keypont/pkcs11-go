@@ -47,8 +47,8 @@ func TestIntegrationCopyObject(t *testing.T) {
 		}
 	}
 
-	testCtx.DestroyObject(sh, orig)
-	testCtx.DestroyObject(sh, cpy)
+	_ = testCtx.DestroyObject(sh, orig)
+	_ = testCtx.DestroyObject(sh, cpy)
 }
 
 // ── WaitForSlotEvent ──────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ func TestIntegrationDigestEncryptUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	defer testCtx.DestroyObject(sh, keyH)
+	defer func() { _ = testCtx.DestroyObject(sh, keyH) }()
 
 	iv, err := testCtx.GenerateRandom(sh, 16)
 	if err != nil {
@@ -212,14 +212,14 @@ func TestIntegrationSignEncryptUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate RSA key pair: %v", err)
 	}
-	defer testCtx.DestroyObject(sh, pubH)
-	defer testCtx.DestroyObject(sh, privH)
+	defer func() { _ = testCtx.DestroyObject(sh, pubH) }()
+	defer func() { _ = testCtx.DestroyObject(sh, privH) }()
 
 	encH, err := genAESKeyRaw(t, sh, "seu-enc")
 	if err != nil {
 		t.Fatalf("generate AES key: %v", err)
 	}
-	defer testCtx.DestroyObject(sh, encH)
+	defer func() { _ = testCtx.DestroyObject(sh, encH) }()
 
 	iv, err := testCtx.GenerateRandom(sh, 16)
 	if err != nil {

@@ -16,7 +16,7 @@ OASIS        := https://raw.githubusercontent.com/oasis-tcs/pkcs11/$(OASIS_COMMI
 HEADER_DIR   := internal/headers
 
 .PHONY: all headers refresh-headers generate build test integration integration-v32 \
-        clean-headers version release
+        lint lint-fix clean-headers version release
 
 all: headers generate build test
 
@@ -50,6 +50,28 @@ generate:
 # ── Build ────────────────────────────────────────────────────────────────────
 build:
 	go build ./...
+
+# ── Lint ─────────────────────────────────────────────────────────────────────
+# Runs golangci-lint (v2) against .golangci.yml — the same checks as the CI
+# Lint workflow, so you can catch issues before pushing. cgo needs a C toolchain
+# (gcc/clang); SoftHSM is NOT required for linting.
+#
+# Install the linter (v2, matching CI's `version: latest`):
+#   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+# Ensure $(go env GOPATH)/bin is on your PATH, then `golangci-lint version`.
+GOLANGCI_LINT ?= golangci-lint
+
+lint:
+	@command -v $(GOLANGCI_LINT) >/dev/null 2>&1 || { \
+	    echo "golangci-lint not found. Install the v2 binary with:"; \
+	    echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
+	    exit 1; \
+	}
+	$(GOLANGCI_LINT) run ./...
+
+# Auto-fix the mechanically-fixable findings (formatting, some conversions):
+lint-fix:
+	$(GOLANGCI_LINT) run --fix ./...
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test:

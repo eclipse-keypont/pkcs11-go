@@ -42,7 +42,7 @@ func zfree(p unsafe.Pointer, n C.CK_ULONG) {
 		return
 	}
 	if n > 0 {
-		C.ck_memzero(p, C.size_t(n))
+		C.ck_memzero(p, n)
 	}
 	C.free(p)
 }
@@ -158,7 +158,7 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		if uint64(n) > maxOutBuf {
 			return nil, fmt.Errorf("cryptoki: output size %d exceeds limit %d", uint64(n), uint64(maxOutBuf))
 		}
-		buf := C.malloc(C.size_t(n))
+		buf := C.malloc(n)
 		rv := uint(call((C.CK_BYTE_PTR)(buf), &n))
 		if rv == CKR_BUFFER_TOO_SMALL {
 			// n now holds the larger required size; reallocate and retry.

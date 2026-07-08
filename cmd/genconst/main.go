@@ -78,7 +78,7 @@ func parse(path string) ([]define, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []define
 	sc := bufio.NewScanner(f)

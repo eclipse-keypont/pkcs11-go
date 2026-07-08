@@ -72,11 +72,11 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	if testCtx != nil {
-		testCtx.Finalize()
+		_ = testCtx.Finalize()
 		testCtx.Destroy()
 	}
 	if testTmpDir != "" {
-		os.RemoveAll(testTmpDir)
+		_ = os.RemoveAll(testTmpDir)
 	}
 	os.Exit(code)
 }
@@ -118,7 +118,7 @@ func setupToken() error {
 	if err := ctx.Initialize(); err != nil {
 		return fmt.Errorf("Initialize: %w", err)
 	}
-	defer ctx.Finalize()
+	defer func() { _ = ctx.Finalize() }()
 
 	free, err := ctx.GetSlotList(false)
 	if err != nil {
@@ -140,11 +140,11 @@ func setupToken() error {
 	if err != nil {
 		return fmt.Errorf("OpenSession: %w", err)
 	}
-	defer ctx.CloseSession(sh)
+	defer func() { _ = ctx.CloseSession(sh) }()
 	if err := ctx.Login(sh, CKU_SO, testSOPin); err != nil {
 		return fmt.Errorf("Login(SO): %w", err)
 	}
-	defer ctx.Logout(sh)
+	defer func() { _ = ctx.Logout(sh) }()
 	if err := ctx.InitPIN(sh, testUserPin()); err != nil {
 		return fmt.Errorf("InitPIN: %w", err)
 	}
@@ -181,12 +181,12 @@ func requireSession(t *testing.T) SessionHandle {
 		t.Fatalf("OpenSession: %v", err)
 	}
 	if err := testCtx.Login(sh, CKU_USER, testUserPin()); err != nil {
-		testCtx.CloseSession(sh)
+		_ = testCtx.CloseSession(sh)
 		t.Fatalf("Login(USER): %v", err)
 	}
 	t.Cleanup(func() {
-		testCtx.Logout(sh)
-		testCtx.CloseSession(sh)
+		_ = testCtx.Logout(sh)
+		_ = testCtx.CloseSession(sh)
 	})
 	return sh
 }

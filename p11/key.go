@@ -28,8 +28,12 @@ type KeyPair struct {
 }
 
 // Object returns the underlying Object (for Label, Attribute, Destroy, …).
-func (k SecretKey) Object() Object  { return Object(k) }
-func (k PublicKey) Object() Object  { return Object(k) }
+func (k SecretKey) Object() Object { return Object(k) }
+
+// Object returns the underlying Object (for Label, Attribute, Destroy, …).
+func (k PublicKey) Object() Object { return Object(k) }
+
+// Object returns the underlying Object (for Label, Attribute, Destroy, …).
 func (k PrivateKey) Object() Object { return Object(k) }
 
 // ── SecretKey ────────────────────────────────────────────────────────────────

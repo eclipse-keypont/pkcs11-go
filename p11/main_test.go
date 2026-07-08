@@ -51,10 +51,10 @@ func TestMain(m *testing.M) {
 	}
 	code := m.Run()
 	if testMod != nil {
-		testMod.Close()
+		_ = testMod.Close()
 	}
 	if testTmpDir != "" {
-		os.RemoveAll(testTmpDir)
+		_ = os.RemoveAll(testTmpDir)
 	}
 	os.Exit(code)
 }
@@ -105,11 +105,11 @@ func setup() error {
 	if err != nil {
 		return fmt.Errorf("OpenWriteSession: %w", err)
 	}
-	defer sess.Close()
+	defer func() { _ = sess.Close() }()
 	if err := sess.LoginSecurityOfficer(testSOPin); err != nil {
 		return fmt.Errorf("Login(SO): %w", err)
 	}
-	defer sess.Logout()
+	defer func() { _ = sess.Logout() }()
 	if err := sess.InitPIN(testUserPin()); err != nil {
 		return fmt.Errorf("InitPIN: %w", err)
 	}
@@ -145,12 +145,12 @@ func requireSession(t *testing.T) *Session {
 		t.Fatalf("OpenWriteSession: %v", err)
 	}
 	if err := sess.Login(testUserPin()); err != nil {
-		sess.Close()
+		_ = sess.Close()
 		t.Fatalf("Login: %v", err)
 	}
 	t.Cleanup(func() {
-		sess.Logout()
-		sess.Close()
+		_ = sess.Logout()
+		_ = sess.Close()
 	})
 	return sess
 }

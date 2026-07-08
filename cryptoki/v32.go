@@ -44,7 +44,7 @@ func (c *Ctx) EncapsulateKey(sh SessionHandle, m *Mechanism, pubKey ObjectHandle
 	var buf unsafe.Pointer
 	var ctPtr C.CK_BYTE_PTR
 	if ctLen > 0 {
-		buf = C.malloc(C.size_t(ctLen))
+		buf = C.malloc(ctLen)
 		defer C.free(buf)
 		ctPtr = (C.CK_BYTE_PTR)(buf)
 	}

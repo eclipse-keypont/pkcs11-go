@@ -164,13 +164,13 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	unavailable := C.CK_ULONG(C.CK_UNAVAILABLE_INFORMATION)
 	for i := range list {
 		if list[i].ulValueLen != unavailable && list[i].ulValueLen > 0 {
-			list[i].pValue = C.CK_VOID_PTR(C.malloc(C.size_t(list[i].ulValueLen)))
+			list[i].pValue = C.CK_VOID_PTR(C.malloc(list[i].ulValueLen))
 		}
 	}
 	defer func() {
 		for i := range list {
 			if list[i].pValue != nil {
-				zfree(unsafe.Pointer(list[i].pValue), C.CK_ULONG(list[i].ulValueLen))
+				zfree(unsafe.Pointer(list[i].pValue), list[i].ulValueLen)
 			}
 		}
 	}()
@@ -221,11 +221,11 @@ func (c *Ctx) FindObjectsInit(sh SessionHandle, tmpl []*Attribute) error {
 	return toError(uint(C.ck_find_objects_init(m, C.CK_SESSION_HANDLE(sh), arr, n)))
 }
 
-// FindObjects returns up to max object handles from the active search
-// (C_FindObjects). A returned slice shorter than max means the search is
+// FindObjects returns up to maxObjects object handles from the active search
+// (C_FindObjects). A returned slice shorter than maxObjects means the search is
 // exhausted. Call FindObjectsFinal when done.
-func (c *Ctx) FindObjects(sh SessionHandle, max int) ([]ObjectHandle, error) {
-	if max <= 0 {
+func (c *Ctx) FindObjects(sh SessionHandle, maxObjects int) ([]ObjectHandle, error) {
+	if maxObjects <= 0 {
 		return nil, nil
 	}
 	m, release, err := c.grab()
@@ -233,9 +233,9 @@ func (c *Ctx) FindObjects(sh SessionHandle, max int) ([]ObjectHandle, error) {
 		return nil, err
 	}
 	defer release()
-	buf := make([]C.CK_OBJECT_HANDLE, max)
+	buf := make([]C.CK_OBJECT_HANDLE, maxObjects)
 	var count C.CK_ULONG
-	rv := C.ck_find_objects(m, C.CK_SESSION_HANDLE(sh), &buf[0], C.CK_ULONG(max), &count)
+	rv := C.ck_find_objects(m, C.CK_SESSION_HANDLE(sh), &buf[0], C.CK_ULONG(maxObjects), &count)
 	if err := toError(uint(rv)); err != nil {
 		return nil, err
 	}

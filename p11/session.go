@@ -145,7 +145,7 @@ func (s *Session) FindObjects(template []*cryptoki.Attribute) ([]Object, error) 
 	for {
 		batch, err := s.ctx.FindObjects(s.handle, 32)
 		if err != nil {
-			s.ctx.FindObjectsFinal(s.handle)
+			_ = s.ctx.FindObjectsFinal(s.handle)
 			return nil, err
 		}
 		if len(batch) == 0 {

@@ -165,8 +165,8 @@ func TestCopyObject(t *testing.T) {
 		t.Fatalf("copy label = %q, want %q", got, "p11-copy-dst")
 	}
 
-	key.Object().Destroy()
-	cpy.Destroy()
+	_ = key.Object().Destroy()
+	_ = cpy.Destroy()
 }
 
 func TestMLKEMEncapsulateDecapsulate(t *testing.T) {

@@ -262,6 +262,25 @@ make generate          # regenerate cryptoki/zconst.go from pkcs11t.h
 make build test        # compile and run unit tests
 ```
 
+## Linting
+
+CI runs [golangci-lint][golangci] (v2) via `.golangci.yml`. Run the same checks
+locally before pushing:
+
+```bash
+# One-time install of the v2 binary (matches CI's `version: latest`):
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+# Ensure $(go env GOPATH)/bin is on your PATH, then:
+
+make lint       # report issues (same as the CI Lint workflow)
+make lint-fix   # auto-fix the mechanically-fixable findings
+```
+
+Linting compiles cgo, so a C toolchain (`gcc`/`clang`) is required; no HSM is
+needed.
+
+[golangci]: https://golangci-lint.run
+
 ## Testing against a real token
 
 Unit tests need no HSM. Integration tests load a PKCS #11 module via
