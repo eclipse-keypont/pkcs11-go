@@ -3,6 +3,7 @@
 [![Build](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
 [![Lint](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
 [![Secret Scan](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
+[![Release](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/eclipse-keypont/pkcs11-go/badge)](https://scorecard.dev/viewer/?uri=github.com/eclipse-keypont/pkcs11-go)
 [![GitHub release](https://img.shields.io/github/v/release/eclipse-keypont/pkcs11-go)](https://github.com/eclipse-keypont/pkcs11-go/releases/latest)
 

@@ -11,6 +11,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Allows the Release pipeline to gate a tag on a passing lint run.
+  workflow_call:
 
 permissions:
   contents: read

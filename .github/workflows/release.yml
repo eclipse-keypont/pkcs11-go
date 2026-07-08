@@ -34,9 +34,25 @@ permissions:
   contents: read
 
 jobs:
+  # -- 0. Quality gates — a tag must not ship if these fail ------------------
+  # Reuse the existing Lint and Vulnerability-Scan workflows (workflow_call) so
+  # the release runs exactly the same checks as CI, with no duplicated logic.
+  lint:
+    name: Lint gate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint.yml
+
+  govulncheck:
+    name: Vulnerability gate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/govulncheck.yml
+
   # -- 1. Build, checksum, sign, and publish the source archive --------------
   build:
     name: Build & sign source archive
+    needs: [lint, govulncheck]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # create the GitHub Release and upload assets
