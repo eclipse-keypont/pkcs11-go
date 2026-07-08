@@ -1,5 +1,6 @@
 # pkcs11-go
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/eclipse-keypont/pkcs11-go.svg)](https://pkg.go.dev/github.com/eclipse-keypont/pkcs11-go)
 [![Build](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
 [![Lint](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
 [![Secret Scan](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
