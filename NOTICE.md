@@ -1,7 +1,7 @@
 # Vendored OASIS PKCS #11 headers
 
-This directory vendors three header files **verbatim** from the OASIS PKCS #11
-Technical Committee:
+The `internal/headers/` directory vendors three header files **verbatim** from
+the OASIS PKCS #11 Technical Committee:
 
 | File         | Origin                                              |
 |--------------|-----------------------------------------------------|
@@ -12,7 +12,7 @@ Technical Committee:
 Upstream source: <https://github.com/oasis-tcs/pkcs11>
 Specification:   <https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.2/pkcs11-spec-v3.2.html>
 
-`platform.h` in this directory is **not** an OASIS file. It is original work
+`internal/headers/platform.h` is **not** an OASIS file. It is original work
 (Copyright © 2026 The Eclipse Foundation and pkcs11-go Authors, MIT) that supplies the five
 platform-configuration macros the OASIS headers require callers to define, per
 the documentation block at the top of `pkcs11.h`.

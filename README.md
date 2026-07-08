@@ -4,7 +4,6 @@
 [![Lint](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
 [![Secret Scan](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/eclipse-keypont/pkcs11-go/badge)](https://scorecard.dev/viewer/?uri=github.com/eclipse-keypont/pkcs11-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/eclipse-keypont/pkcs11-go)](https://goreportcard.com/report/github.com/eclipse-keypont/pkcs11-go)
 [![GitHub release](https://img.shields.io/github/v/release/eclipse-keypont/pkcs11-go)](https://github.com/eclipse-keypont/pkcs11-go/releases/latest)
 
 A Go binding for the [OASIS PKCS #11 (Cryptoki) v3.2][spec] cryptographic token
@@ -198,7 +197,7 @@ make refresh-headers   # re-downloads from the exact commit above and prints sha
 ```
 
 The full OASIS copyright notice and IPR policy statement for these headers is in
-[`internal/headers/NOTICE.md`](./internal/headers/NOTICE.md).
+[`NOTICE.md`](./NOTICE.md).
 
 ## State of the Art: Other Go PKCS #11 Projects
 
@@ -235,7 +234,7 @@ of the underlying C API, which is fixed by the OASIS standard.
   Copyright © 2026 The Eclipse Foundation. See [LICENSE](./LICENSE).
 - The three vendored OASIS headers under [`internal/headers/`](./internal/headers/)
   remain under their own OASIS copyright and the OASIS IPR Policy; they are
-  redistributed verbatim. See [internal/headers/NOTICE.md](./internal/headers/NOTICE.md).
+  redistributed verbatim. See [NOTICE.md](./NOTICE.md).
 
 ## Layout
 
@@ -247,7 +246,8 @@ pkcs11-go/
 │   └── version.go       #   release version (build tag: release)
 ├── p11/                 # high-level, object-oriented helpers (built on cryptoki)
 ├── cmd/genconst/        # clean-room header→constants generator
-├── internal/headers/    # vendored OASIS v3.2 headers + platform.h shim + NOTICE
+├── internal/headers/    # vendored OASIS v3.2 headers + platform.h shim
+├── NOTICE.md            # OASIS copyright / IPR notice for the vendored headers
 └── Makefile             # headers / generate / build / test / integration / release
 ```
 

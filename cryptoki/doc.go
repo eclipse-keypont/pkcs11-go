@@ -10,7 +10,7 @@
 // helpers built on top of this package live in module path .../p11.
 //
 // The constant set in zconst.go is generated directly from the OASIS header
-// pkcs11t.h by ./cmd/genconst; see internal/headers/NOTICE.md for the headers'
+// pkcs11t.h by ./cmd/genconst; see the repository-root NOTICE.md for the headers'
 // provenance and license. This binding is an independent, clean-room
 // implementation derived solely from the OASIS PKCS #11 v3.2 specification and
 // its published C headers.

@@ -5,5 +5,5 @@
 // cryptoki package via CGo. The package contains no Go code; it exists solely
 // so that go mod vendor copies the .h files alongside the Go sources.
 //
-// See NOTICE.md for copyright and licence information.
+// See the repository-root NOTICE.md for copyright and licence information.
 package headers

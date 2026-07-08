@@ -19,14 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This repository vendors the OASIS PKCS #11 v3.2 C headers (pkcs11.h, pkcs11t.h,
-pkcs11f.h) under internal/headers/. Those files remain under their own OASIS
-copyright and the OASIS IPR Policy; see internal/headers/NOTICE.md. The MIT
-license above does not extend to those OASIS-copyrighted headers.
-
-This binding is an independent, clean-room implementation derived from the OASIS
-PKCS #11 v3.2 specification and C headers. It is inspired by the design of
-miekg/pkcs11 but contains no code copied from it.

@@ -128,7 +128,7 @@ integration-v32:
 
 # ── clean-headers ────────────────────────────────────────────────────────────
 # Removes the downloaded OASIS headers (run `make headers` to restore them).
-# Keeps platform.h and NOTICE.md, which are part of this repository.
+# Keeps platform.h, which is part of this repository.
 clean-headers:
 	rm -f $(HEADER_DIR)/pkcs11t.h $(HEADER_DIR)/pkcs11f.h $(HEADER_DIR)/pkcs11.h
 
