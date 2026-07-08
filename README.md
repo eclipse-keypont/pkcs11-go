@@ -222,6 +222,7 @@ project with different goals than `miekg/pkcs11`:
   ergonomic object-oriented interface on top
 - **Clean-room constants** — generated directly from the vendored OASIS headers
   at a pinned commit, not transcribed by hand
+- **modern hardened CICD** — `eclipse-keypont/pkcs11-go` is using state of the art Github Actions to ensure security scanning, openssf scorecard, secret scanning, code quality monitoring, and release automation with release signing and SLSA support.
 
 No code is shared between the two projects. The only common ground is the shape
 of the underlying C API, which is fixed by the OASIS standard.
