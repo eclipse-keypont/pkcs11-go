@@ -10,6 +10,7 @@ package cryptoki
 import "C"
 
 import (
+	"encoding/binary"
 	"fmt"
 	"unsafe"
 )
@@ -58,6 +59,42 @@ func ckULong(v uint) []byte {
 		panic("cryptoki: value overflows CK_ULONG on this platform")
 	}
 	return C.GoBytes(unsafe.Pointer(&cv), C.int(unsafe.Sizeof(cv)))
+}
+
+// ULongSize is the width in bytes of a CK_ULONG on this platform: 8 under LP64
+// (Linux, macOS), 4 under Windows' LLP64 model and on 32-bit targets. A Go uint
+// is 64 bits everywhere, so the two are not interchangeable — code that decodes
+// an attribute value by reinterpreting its address as a *uint reads past the
+// end of the value on Windows and gets garbage in the high half.
+const ULongSize = C.sizeof_CK_ULONG
+
+// ULongToBytes encodes v as exactly one CK_ULONG in the platform's native byte
+// order, for use as a raw mechanism parameter (CK_MAC_GENERAL_PARAMS, say) or
+// an attribute value built by hand. NewAttribute already applies this to int
+// and uint values, so a template does not need it.
+//
+// It panics if v does not fit the platform's CK_ULONG: a truncated parameter is
+// a programming error that the token has no way to report back.
+func ULongToBytes(v uint) []byte {
+	return ckULong(v)
+}
+
+// BytesToULong decodes a CK_ULONG returned by a Cryptoki call — typically an
+// attribute value from GetAttributeValue, where Cryptoki hands back raw bytes
+// whose width is the token's, not Go's.
+//
+// Tokens are not always exact about that width, so a value shorter than a
+// CK_ULONG is zero-extended (SoftHSM returns a 4-byte CKA_PARAMETER_SET, for
+// instance) and anything beyond the first CK_ULONG is ignored. An empty or nil
+// slice decodes to 0, matching Cryptoki's "attribute absent" convention.
+func BytesToULong(b []byte) uint {
+	var buf [ULongSize]byte
+	copy(buf[:], b)
+
+	if ULongSize < 8 {
+		return uint(binary.NativeEndian.Uint32(buf[:]))
+	}
+	return uint(binary.NativeEndian.Uint64(buf[:]))
 }
 
 // ckBBool encodes a Cryptoki CK_BBOOL (one byte: CK_TRUE or CK_FALSE).

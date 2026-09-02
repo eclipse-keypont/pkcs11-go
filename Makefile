@@ -15,25 +15,47 @@ OASIS_COMMIT := 858bfc8b93ded02a40886e2321240b5978e1aa42
 OASIS        := https://raw.githubusercontent.com/oasis-tcs/pkcs11/$(OASIS_COMMIT)/published/3-02
 HEADER_DIR   := internal/headers
 
-.PHONY: all headers refresh-headers generate build test integration integration-v32 \
-        lint lint-fix clean-headers version release
+.PHONY: all headers refresh-headers generate build vet test integration integration-v32 \
+        lint lint-fix govulncheck clean-headers version release
 
 all: headers generate build test
+
+# ── Tool preconditions ───────────────────────────────────────────────────────
+# $(call require,<binary>,<how to install it>) — fail early with an install hint.
+#
+# Probes by running the tool, not `command -v`: a goenv shim stays on PATH even
+# when the tool is not installed for the active Go version, so `command -v` says
+# yes and the build dies later. Exit 127 (missing binary or dead shim) is the
+# only status treated as missing; tools without --version exit 1 or 2 and pass.
+#
+# A hint must not contain a comma — make would read it as another $(call) argument.
+define require
+@$(1) --version >/dev/null 2>&1; \
+if [ $$? -eq 127 ]; then \
+    echo "$(1) not found. Install it with:"; \
+    echo "  $(2)"; \
+    exit 1; \
+fi
+endef
 
 # ── Download official OASIS headers ──────────────────────────────────────────
 headers: $(HEADER_DIR)/pkcs11t.h $(HEADER_DIR)/pkcs11f.h $(HEADER_DIR)/pkcs11.h
 
 $(HEADER_DIR)/pkcs11t.h:
+	$(call require,curl,sudo apt-get install curl)
 	curl -sSfL "$(OASIS)/pkcs11t.h" -o $@
 
 $(HEADER_DIR)/pkcs11f.h:
+	$(call require,curl,sudo apt-get install curl)
 	curl -sSfL "$(OASIS)/pkcs11f.h" -o $@
 
 $(HEADER_DIR)/pkcs11.h:
+	$(call require,curl,sudo apt-get install curl)
 	curl -sSfL "$(OASIS)/pkcs11.h" -o $@
 
 # Force re-download even when files already exist, then record their digests.
 refresh-headers:
+	$(call require,curl,sudo apt-get install curl)
 	curl -sSfL "$(OASIS)/pkcs11t.h" -o $(HEADER_DIR)/pkcs11t.h
 	curl -sSfL "$(OASIS)/pkcs11f.h" -o $(HEADER_DIR)/pkcs11f.h
 	curl -sSfL "$(OASIS)/pkcs11.h"  -o $(HEADER_DIR)/pkcs11.h
@@ -51,6 +73,10 @@ generate:
 build:
 	go build ./...
 
+# ── Vet ──────────────────────────────────────────────────────────────────────
+vet:
+	go vet ./...
+
 # ── Lint ─────────────────────────────────────────────────────────────────────
 # Runs golangci-lint (v2) against .golangci.yml — the same checks as the CI
 # Lint workflow, so you can catch issues before pushing. cgo needs a C toolchain
@@ -60,18 +86,28 @@ build:
 #   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 # Ensure $(go env GOPATH)/bin is on your PATH, then `golangci-lint version`.
 GOLANGCI_LINT ?= golangci-lint
+GOLANGCI_LINT_INSTALL_HINT := go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 lint:
-	@command -v $(GOLANGCI_LINT) >/dev/null 2>&1 || { \
-	    echo "golangci-lint not found. Install the v2 binary with:"; \
-	    echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
-	    exit 1; \
-	}
+	$(call require,$(GOLANGCI_LINT),$(GOLANGCI_LINT_INSTALL_HINT))
 	$(GOLANGCI_LINT) run ./...
 
 # Auto-fix the mechanically-fixable findings (formatting, some conversions):
 lint-fix:
+	$(call require,$(GOLANGCI_LINT),$(GOLANGCI_LINT_INSTALL_HINT))
 	$(GOLANGCI_LINT) run --fix ./...
+
+# ── Vulnerability scan ───────────────────────────────────────────────────────
+# Runs govulncheck (reachability-aware, cross-checked against the Go vuln DB) —
+# the same check as the CI govulncheck workflow (.github/workflows/govulncheck.yml).
+#
+# Install govulncheck:
+#   go install golang.org/x/vuln/cmd/govulncheck@latest
+GOVULNCHECK ?= govulncheck
+
+govulncheck:
+	$(call require,$(GOVULNCHECK),go install golang.org/x/vuln/cmd/govulncheck@latest)
+	$(GOVULNCHECK) -show verbose ./...
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test:

@@ -15,6 +15,13 @@ interface, including post-quantum (ML-KEM / ML-DSA) and other v3.2 additions.
 import "github.com/eclipse-keypont/pkcs11-go/cryptoki"
 ```
 
+## Part of Eclipse Keypont
+
+pkcs11-go is part of [Eclipse Keypont](https://projects.eclipse.org/projects/technology.keypont), alongside
+[crypto11](https://github.com/eclipse-keypont/crypto11) and [gose](https://github.com/eclipse-keypont/gose).
+*Keypont* — "key" plus the French *pont* ("bridge") — reflects the project's goal: bridging Go
+applications to cryptographic keys held in HSMs and other PKCS#11-backed hardware.
+
 ## Quick start
 
 The `p11` package provides an ergonomic, object-oriented API over the raw

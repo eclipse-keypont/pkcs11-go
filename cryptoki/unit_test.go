@@ -70,3 +70,54 @@ func TestNewAttributePanicsOnUnsupported(t *testing.T) {
 	}()
 	NewAttribute(CKA_VALUE, struct{}{})
 }
+
+func TestULongToBytes(t *testing.T) {
+	// The encoding is one CK_ULONG wide, no matter the value: a token handed a
+	// 4-byte parameter where it expects 8 reads past the end of it.
+	for _, v := range []uint{0, 1, 0xff, CKO_SECRET_KEY, CKM_SHA256, 1<<32 - 1} {
+		got := ULongToBytes(v)
+		if len(got) != ULongSize {
+			t.Fatalf("ULongToBytes(%d) is %d bytes, want %d", v, len(got), ULongSize)
+		}
+		if decoded := leUint(got); decoded != uint64(v) {
+			t.Fatalf("ULongToBytes(%d) decodes to %d", v, decoded)
+		}
+	}
+}
+
+func TestULongRoundTrip(t *testing.T) {
+	for _, v := range []uint{0, 1, 0xff, 0xddccbbaa, CKO_SECRET_KEY} {
+		if got := BytesToULong(ULongToBytes(v)); got != v {
+			t.Fatalf("round trip of %d gave %d", v, got)
+		}
+	}
+}
+
+func TestBytesToULongWidths(t *testing.T) {
+	// Tokens return CK_ULONG attributes shorter than a CK_ULONG (SoftHSM's
+	// 4-byte CKA_PARAMETER_SET) and, occasionally, longer. Neither may read
+	// past what the token actually supplied.
+	full := []byte{0xaa, 0xbb, 0xcc, 0xdd, 0x00, 0x11, 0x22, 0x33}
+
+	for n := 0; n <= len(full); n++ {
+		in := full[:n]
+
+		want := leUint(in)
+		if n > ULongSize {
+			want = leUint(in[:ULongSize])
+		}
+
+		if got := BytesToULong(in); got != uint(want) {
+			t.Fatalf("BytesToULong(%X) = %#x, want %#x", in, got, want)
+		}
+	}
+
+	if got := BytesToULong(nil); got != 0 {
+		t.Fatalf("BytesToULong(nil) = %d, want 0", got)
+	}
+
+	// Bytes past the first CK_ULONG are ignored, not misread.
+	if BytesToULong(full) != BytesToULong(append(append([]byte{}, full...), full...)) {
+		t.Fatal("a value longer than a CK_ULONG was not truncated")
+	}
+}
