@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 The Eclipse Foundation and pkcs11-go Authors
+# SPDX-License-Identifier: MIT
+#
+name: Fuzz
+
+# Runs the native Go fuzz targets in cryptoki/ for longer than the regular
+# test suite affords (`make test` just runs their seed corpus). Triggered by
+# pushing a release-candidate tag, so regressions surface before a real
+# version tag ships rather than on an unrelated nightly schedule; also
+# available on demand via workflow_dispatch.
+#
+# NOTE: release.yml's `v*` tag trigger also matches `v*-rc*` tags, so pushing
+# an RC tag currently fires the Release pipeline (signed archive + GitHub
+# Release) as well as this workflow. Narrow release.yml's pattern first if RC
+# tags should not publish a release.
+
+on:
+  push:
+    tags:
+      - "v*-rc*"
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Fuzz time per target (Go duration, e.g. 3m)'
+        required: false
+        default: '3m'
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - FuzzBytesToULong
+          - FuzzNewAttributeBytes
+          - FuzzNewAttributeString
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fuzz ${{ matrix.target }}
+        env:
+          DURATION: ${{ github.event.inputs.duration || '3m' }}
+        run: go test ./cryptoki/... -run '^$' -fuzz "^${{ matrix.target }}$" -fuzztime "$DURATION"
+
+      # A failure means the fuzzer minimized a crashing input into
+      # cryptoki/testdata/fuzz/<target>/. Download it and commit it to the repo
+      # to turn the crash into a permanent regression case for `make test`.
+      - name: Upload crasher
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-crasher-${{ matrix.target }}
+          path: cryptoki/testdata/fuzz/${{ matrix.target }}/
+          retention-days: 30
