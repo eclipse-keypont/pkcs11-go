@@ -22,7 +22,7 @@
 A Go binding for the [OASIS PKCS #11 (Cryptoki) v3.2][spec] cryptographic token
 interface, including post-quantum (ML-KEM / ML-DSA) and other v3.2 additions.
 
-```
+```go
 import "github.com/eclipse-keypont/pkcs11-go/cryptoki"
 ```
 
@@ -263,11 +263,11 @@ of the underlying C API, which is fixed by the OASIS standard.
 pkcs11-go/
 ├── cryptoki/            # low-level cgo binding (Ctx, types, errors, params)
 │   ├── doc.go           #   package doc + //go:generate directive
-│   ├── zconst.go        #   generated constants (DO NOT EDIT)
-│   └── version.go       #   release version (build tag: release)
+│   └── zconst.go        #   generated constants (DO NOT EDIT)
 ├── p11/                 # high-level, object-oriented helpers (built on cryptoki)
 ├── cmd/genconst/        # clean-room header→constants generator
 ├── internal/headers/    # vendored OASIS v3.2 headers + platform.h shim
+├── CHANGELOG.md         # release-to-release changes (Keep a Changelog)
 ├── NOTICE.md            # OASIS copyright / IPR notice for the vendored headers
 └── Makefile             # headers / generate / build / test / integration / release
 ```
@@ -349,7 +349,34 @@ On top of that, each release is independently signed and attested:
     pkcs11-go-v1.0.0.tar.gz
   ```
 
-Cut a release with `make release` (bump `Release` in `cryptoki/version.go` first).
+Release-to-release changes are recorded in [CHANGELOG.md](./CHANGELOG.md). The
+GitHub Release notes are generated from commits and live only on the Releases
+page; the changelog ships inside the module and the signed source archive.
+
+The version lives in the git tags and nowhere else — no constant in the Go code
+to bump, and nothing to drift out of step with the tag it names.
+
+```bash
+make version           # what git says HEAD is: v1.1.0-rc1-2-gb49e180-dirty
+make next BUMP=minor   # the version that bump would cut: 1.2.0
+```
+
+To cut a release: rename the changelog's `## [Unreleased]` heading to the new
+version and date, then run `make release` with the bump you want. It derives the
+version from the newest `v*` tag and refuses to tag if the changelog has no dated
+section for it, or if the tag already exists.
+
+```bash
+make release BUMP=minor            # 1.1.0-rc1 -> 1.2.0
+make release BUMP=rc               # 1.1.0-rc1 -> 1.1.0-rc2
+make release BUMP=final            # 1.1.0-rc1 -> 1.1.0
+make release BUMP=minor PRE=rc1    # 1.1.0     -> 1.2.0-rc1
+make release VERSION=2.0.0         # override the arithmetic entirely
+```
+
+`major`, `minor`, and `patch` drop any pre-release identifier unless `PRE` keeps
+one; `rc` increments the trailing digits of the current one. The bump reads the
+local tags, so run `git fetch --tags` first if the clone may be behind.
 
 [sumdb]: https://sum.golang.org
 [cosign]: https://github.com/sigstore/cosign
