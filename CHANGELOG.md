@@ -16,14 +16,33 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-04
+
+The final release of the 1.1.0 line. This section lists everything since 1.0.0,
+including the changes first published in [1.1.0-rc1].
+
 ### Added
 
+- `ULongSize`, `ULongToBytes`, and `BytesToULong` in `cryptoki` — the CK_ULONG
+  codec, previously private as `ckULong`, is now exported in both directions.
+  Cryptoki returns attribute values at the token's CK_ULONG width (8 bytes under
+  LP64, 4 under Windows' LLP64), while a Go `uint` is 64 bits everywhere, so
+  callers had to import `"C"` for `sizeof(CK_ULONG)` or guess. Consumers can now
+  decode a CK_ULONG without cgo. `BytesToULong` zero-extends a value shorter than
+  a CK_ULONG (SoftHSM returns a 4-byte `CKA_PARAMETER_SET`) and ignores anything
+  past the first one, so a quirky token cannot make a caller read off the end.
+  Refs [eclipse-keypont/crypto11#103](https://github.com/eclipse-keypont/crypto11/pull/103),
+  where reinterpreting an attribute value as a `*uint` left garbage in the high
+  half on Windows and broke `FindAllKeyPairs`.
 - Native Go fuzz targets for the CK_ULONG codec (`ULongToBytes` / `BytesToULong`)
   and for `NewAttribute`'s `[]byte` and `string` encoding — the pure-Go paths
   that handle arbitrary token-supplied bytes rather than the cgo call boundary.
   Also satisfies OpenSSF Scorecard's Fuzzing check.
 - `fuzz.yml` workflow running each target well past its seed corpus, triggered
   by pushing a `v*-rc*` tag or via `workflow_dispatch`.
+- This changelog. GitHub Release notes are generated from commits and live only
+  on the Releases page; the changelog ships inside the module and the signed
+  source archive, where auditors and `go get` consumers can actually reach it.
 
 ### Changed
 
@@ -44,25 +63,6 @@ independent of the PKCS #11 specification revision the binding targets, which is
   package failed to compile under `-tags release`. Neither target compiles Go
   code any more, and `make release` additionally refuses to tag unless this file
   carries a dated section for the computed version and the tag is unused.
-
-## [1.1.0-rc1] - 2026-08-03
-
-### Added
-
-- `ULongSize`, `ULongToBytes`, and `BytesToULong` in `cryptoki` — the CK_ULONG
-  codec, previously private as `ckULong`, is now exported in both directions.
-  Cryptoki returns attribute values at the token's CK_ULONG width (8 bytes under
-  LP64, 4 under Windows' LLP64), while a Go `uint` is 64 bits everywhere, so
-  callers had to import `"C"` for `sizeof(CK_ULONG)` or guess. Consumers can now
-  decode a CK_ULONG without cgo. `BytesToULong` zero-extends a value shorter than
-  a CK_ULONG (SoftHSM returns a 4-byte `CKA_PARAMETER_SET`) and ignores anything
-  past the first one, so a quirky token cannot make a caller read off the end.
-  Refs [eclipse-keypont/crypto11#103](https://github.com/eclipse-keypont/crypto11/pull/103),
-  where reinterpreting an attribute value as a `*uint` left garbage in the high
-  half on Windows and broke `FindAllKeyPairs`.
-
-### Fixed
-
 - Makefile tool guards passed on a dead version-manager shim. `command -v` asks
   whether a name resolves, not whether it runs, and a goenv shim stays on PATH
   for every tool it has ever seen. The shared `require` macro now probes by
@@ -71,8 +71,20 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ### Documentation
 
-- README records the project's place in [Eclipse Keypont](https://projects.eclipse.org/projects/technology.keypont)
-  and gains a Go version badge.
+- README records the project's place in [Eclipse Keypont](https://projects.eclipse.org/projects/technology.keypont),
+  documents the changelog and the release procedure, and reworks the badge rows.
+
+### Known limitations
+
+- The Windows cgo build and the SoftHSM integration job are disabled in CI
+  (`if: false` in `ci.yml`) pending fixes, so this release is verified by unit
+  tests, lint, and the vulnerability and fuzz jobs only. Note that the CK_ULONG
+  work above targets Windows' LLP64 width but is not currently exercised by a
+  Windows CI run.
+
+## [1.1.0-rc1] - 2026-08-03
+
+Release candidate for [1.1.0]; see that section for the consolidated list.
 
 ## [1.0.0] - 2026-07-08
 
@@ -104,6 +116,7 @@ specification and its C headers, with no code copied from existing bindings.
   and IPR policy for the three headers vendored verbatim under
   `internal/headers/`.
 
-[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.0-rc1...HEAD
+[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0
 [1.1.0-rc1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0-rc1
 [1.0.0]: https://github.com/eclipse-keypont/pkcs11-go/releases/tag/v1.0.0
