@@ -14,9 +14,10 @@
 OASIS_COMMIT := 858bfc8b93ded02a40886e2321240b5978e1aa42
 OASIS        := https://raw.githubusercontent.com/oasis-tcs/pkcs11/$(OASIS_COMMIT)/published/3-02
 HEADER_DIR   := internal/headers
+CHANGELOG    := CHANGELOG.md
 
 .PHONY: all headers refresh-headers generate build vet test integration integration-v32 \
-        lint lint-fix govulncheck clean-headers version release
+        lint lint-fix govulncheck clean-headers version next release
 
 all: headers generate build test
 
@@ -169,44 +170,118 @@ clean-headers:
 	rm -f $(HEADER_DIR)/pkcs11t.h $(HEADER_DIR)/pkcs11f.h $(HEADER_DIR)/pkcs11.h
 
 # ── Release ───────────────────────────────────────────────────────────────────
-# The version is the single source of truth in cryptoki/version.go (built with
-# the `release` build tag). It is used to tag the git repository; no build
-# artifacts are produced or uploaded.
+# Git tags are the single source of truth for the version: nothing in the Go
+# code carries one. `make release` derives the next version from the most recent
+# v* tag and the bump you ask for; no build artifacts are produced or uploaded.
 #
-#   * Bump Release in cryptoki/version.go
-#   * Run: make release   (commits "Release $VERSION", tags v$VERSION, pushes)
-#   * Or:  make version   (just print the current version)
+#   * make version           print what git says HEAD is (git describe)
+#   * make next BUMP=minor   print the version that BUMP would cut
+#   * Rename CHANGELOG.md's "## [Unreleased]" to "## [$VERSION] - <date>"
+#   * make release BUMP=minor  (commits "Release $VERSION", tags, pushes)
+#
+# BUMP, applied to the newest v* tag (say v1.1.0-rc1 or v1.1.0):
+#
+#   major  1.1.0-rc1 -> 2.0.0     minor  1.1.0-rc1 -> 1.2.0
+#   patch  1.1.0-rc1 -> 1.1.1     rc     1.1.0-rc1 -> 1.1.0-rc2
+#   final  1.1.0-rc1 -> 1.1.0
+#
+# major/minor/patch drop any pre-release identifier, so they always move to a
+# final version; add PRE to keep one (BUMP=minor PRE=rc1 -> 1.2.0-rc1), which is
+# how the first candidate of a new line is cut. rc increments the trailing digits
+# of the current identifier and so requires the newest tag to have one; final
+# strips it. VERSION=x.y.z overrides the whole computation — the escape hatch for
+# the first tag in a repository or a version this arithmetic will not produce.
+#
+# The changelog step is enforced, not documented: `make release` refuses to tag
+# unless CHANGELOG.md carries a dated section for the computed version. It is
+# easy to forget, and a tag cannot be taken back. Cutting a tag that already
+# exists is refused for the same reason.
 #
 # The tag is created with `git tag -s` (GPG/SSH-signed, per your git signing
 # config) so consumers can `git verify-tag v$VERSION`. Pushing the tag triggers
 # .github/workflows/release.yml, which builds a signed source archive with SLSA3
 # provenance. `go get` consumers still rely on go.sum + sum.golang.org.
 #
-# All release logic lives inside these recipes so that ordinary targets never
-# compile or run the version probe. The probe is a throwaway main package that
-# prints cryptoki.Release; it is written, run, and removed within one shell.
-define VERSION_PROBE
-//go:build ignore
-
-package main
-
-import (
-	"fmt"
-
-	"github.com/eclipse-keypont/pkcs11-go/cryptoki"
-)
-
-func main() { fmt.Println(cryptoki.Release.String()) }
+# NEXT_VERSION prints the version BUMP/VERSION select, and is the one place that
+# arithmetic lives; both `next` and `release` read it. It needs the tags to be
+# present locally — a shallow or tagless clone (CI's default checkout) can only
+# use VERSION.
+define NEXT_VERSION
+set -eu
+if [ -n "$${VERSION:-}" ]; then printf '%s\n' "$$VERSION"; exit 0; fi
+case "$${BUMP:-}" in
+    major|minor|patch|rc|final) ;;
+    "") echo "BUMP is not set. Use one of:" >&2
+        echo "  make release BUMP=major|minor|patch|rc|final [PRE=rc1]" >&2
+        echo "  make release VERSION=1.2.0" >&2
+        exit 1 ;;
+    *)  echo "BUMP=$$BUMP is not one of major, minor, patch, rc, final." >&2
+        exit 1 ;;
+esac
+last=$$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+if [ -z "$$last" ]; then
+    echo "No v* tag found: nothing to bump from." >&2
+    echo "  Fetch the tags (git fetch --tags), or cut the first release with" >&2
+    echo "  make release VERSION=1.0.0" >&2
+    exit 1
+fi
+base=$${last#v}
+pre=""
+case $$base in
+    *-*) pre=$${base#*-}; base=$${base%%-*} ;;
+esac
+major=$${base%%.*}
+rest=$${base#*.}
+minor=$${rest%%.*}
+patch=$${rest#*.}
+case "$$BUMP" in
+    major)  major=$$((major + 1)); minor=0; patch=0; pre=$${PRE:-} ;;
+    minor)  minor=$$((minor + 1)); patch=0; pre=$${PRE:-} ;;
+    patch)  patch=$$((patch + 1)); pre=$${PRE:-} ;;
+    final)
+        if [ -z "$$pre" ]; then
+            echo "BUMP=final needs $$last to be a pre-release; it is already final." >&2
+            exit 1
+        fi
+        pre="" ;;
+    rc)
+        if [ -z "$$pre" ]; then
+            echo "BUMP=rc needs $$last to carry a pre-release identifier." >&2
+            echo "  For the first candidate of a new version, name the bump it" >&2
+            echo "  belongs to: make release BUMP=minor PRE=rc1" >&2
+            exit 1
+        fi
+        stem=$$(printf '%s' "$$pre" | sed 's/[0-9]*$$//')
+        num=$$(printf '%s' "$$pre" | sed 's/^.*[^0-9]//')
+        pre="$$stem$$((num + 1))" ;;
+esac
+v="$$major.$$minor.$$patch"
+if [ -n "$$pre" ]; then v="$$v-$$pre"; fi
+printf '%s\n' "$$v"
 endef
-export VERSION_PROBE
+export NEXT_VERSION
 
+# What git says HEAD is: the newest tag, commits since it, the abbreviated SHA,
+# and -dirty when the tree has uncommitted changes.
 version:
-	@printf '%s\n' "$$VERSION_PROBE" > version_release.go
-	@go run -tags release version_release.go; rm -f version_release.go
+	@git describe --tags --always --dirty 2>/dev/null \
+	    || { echo "not a git repository (or no commits yet)" >&2; exit 1; }
+
+next:
+	@sh -c "$$NEXT_VERSION"
 
 release:
-	@printf '%s\n' "$$VERSION_PROBE" > version_release.go
-	@v=$$(go run -tags release version_release.go); rm -f version_release.go; \
+	@v=$$(sh -c "$$NEXT_VERSION"); \
+	if git rev-parse -q --verify "refs/tags/v$$v" >/dev/null; then \
+	    echo "Tag v$$v already exists."; \
+	    exit 1; \
+	fi; \
+	if ! grep -q "^## \[$$v\] - " $(CHANGELOG); then \
+	    echo "$(CHANGELOG) has no released section for $$v."; \
+	    echo "  Rename '## [Unreleased]' to '## [$$v] - $$(date +%Y-%m-%d)',"; \
+	    echo "  then update the link definitions at the foot of the file."; \
+	    exit 1; \
+	fi; \
 	echo "Committing release $$v"; \
 	git commit -am "Release $$v"; \
 	git tag -s "v$$v" -m "Release v$$v"; \

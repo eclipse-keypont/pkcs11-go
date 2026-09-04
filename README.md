@@ -1,17 +1,28 @@
 # pkcs11-go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/eclipse-keypont/pkcs11-go.svg)](https://pkg.go.dev/github.com/eclipse-keypont/pkcs11-go)
-[![Build](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
-[![Lint](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
-[![Secret Scan](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
-[![Release](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/eclipse-keypont/pkcs11-go/badge)](https://scorecard.dev/viewer/?uri=github.com/eclipse-keypont/pkcs11-go)
-[![GitHub release](https://img.shields.io/github/v/release/eclipse-keypont/pkcs11-go)](https://github.com/eclipse-keypont/pkcs11-go/releases/latest)
+<!-- Badges: every one is drawn by shields.io with style=flat-square, so they share a height, a
+     typeface and a corner radius. GitHub's own actions/workflows/*/badge.svg, pkg.go.dev's badge
+     and api.scorecard.dev's badge each render at their own metrics and take no style parameter,
+     which is why the shields.io equivalents are used instead. The two rows are deliberate: what
+     the project is, then whether it is healthy. Every URL in this file is an absolute
+     eclipse-keypont one on purpose, so a fork's README keeps pointing at upstream. -->
+[![Licence](https://img.shields.io/github/license/eclipse-keypont/pkcs11-go?style=flat-square&logo=opensourceinitiative&logoColor=white&color=1f6feb)](./LICENSE)
+[![Go Reference](https://img.shields.io/badge/pkg.go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white)](https://pkg.go.dev/github.com/eclipse-keypont/pkcs11-go)
+[![Release](https://img.shields.io/github/v/release/eclipse-keypont/pkcs11-go?style=flat-square&logo=github&logoColor=white&color=1f6feb)](https://github.com/eclipse-keypont/pkcs11-go/releases/latest)
+
+[![Build](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=build)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
+[![Lint](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/lint.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=lint)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
+[![Vulnerability scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/govulncheck.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=vulnerability%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/govulncheck.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/codeql.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=codeql)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/codeql.yml)
+[![Fuzz](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/fuzz.yml?style=flat-square&logo=githubactions&logoColor=white&label=fuzz)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/fuzz.yml)
+[![Secret scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/secret-scan.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=secret%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
+[![Release build](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/release.yml?style=flat-square&logo=githubactions&logoColor=white&label=release%20build)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/eclipse-keypont/pkcs11-go?style=flat-square&logo=openssf&logoColor=white&label=openssf%20scorecard)](https://scorecard.dev/viewer/?uri=github.com/eclipse-keypont/pkcs11-go)
 
 A Go binding for the [OASIS PKCS #11 (Cryptoki) v3.2][spec] cryptographic token
 interface, including post-quantum (ML-KEM / ML-DSA) and other v3.2 additions.
 
-```
+```go
 import "github.com/eclipse-keypont/pkcs11-go/cryptoki"
 ```
 
@@ -252,11 +263,11 @@ of the underlying C API, which is fixed by the OASIS standard.
 pkcs11-go/
 ├── cryptoki/            # low-level cgo binding (Ctx, types, errors, params)
 │   ├── doc.go           #   package doc + //go:generate directive
-│   ├── zconst.go        #   generated constants (DO NOT EDIT)
-│   └── version.go       #   release version (build tag: release)
+│   └── zconst.go        #   generated constants (DO NOT EDIT)
 ├── p11/                 # high-level, object-oriented helpers (built on cryptoki)
 ├── cmd/genconst/        # clean-room header→constants generator
 ├── internal/headers/    # vendored OASIS v3.2 headers + platform.h shim
+├── CHANGELOG.md         # release-to-release changes (Keep a Changelog)
 ├── NOTICE.md            # OASIS copyright / IPR notice for the vendored headers
 └── Makefile             # headers / generate / build / test / integration / release
 ```
@@ -338,7 +349,34 @@ On top of that, each release is independently signed and attested:
     pkcs11-go-v1.0.0.tar.gz
   ```
 
-Cut a release with `make release` (bump `Release` in `cryptoki/version.go` first).
+Release-to-release changes are recorded in [CHANGELOG.md](./CHANGELOG.md). The
+GitHub Release notes are generated from commits and live only on the Releases
+page; the changelog ships inside the module and the signed source archive.
+
+The version lives in the git tags and nowhere else — no constant in the Go code
+to bump, and nothing to drift out of step with the tag it names.
+
+```bash
+make version           # what git says HEAD is: v1.1.0-rc1-2-gb49e180-dirty
+make next BUMP=minor   # the version that bump would cut: 1.2.0
+```
+
+To cut a release: rename the changelog's `## [Unreleased]` heading to the new
+version and date, then run `make release` with the bump you want. It derives the
+version from the newest `v*` tag and refuses to tag if the changelog has no dated
+section for it, or if the tag already exists.
+
+```bash
+make release BUMP=minor            # 1.1.0-rc1 -> 1.2.0
+make release BUMP=rc               # 1.1.0-rc1 -> 1.1.0-rc2
+make release BUMP=final            # 1.1.0-rc1 -> 1.1.0
+make release BUMP=minor PRE=rc1    # 1.1.0     -> 1.2.0-rc1
+make release VERSION=2.0.0         # override the arithmetic entirely
+```
+
+`major`, `minor`, and `patch` drop any pre-release identifier unless `PRE` keeps
+one; `rc` increments the trailing digits of the current one. The bump reads the
+local tags, so run `git fetch --tags` first if the clone may be behind.
 
 [sumdb]: https://sum.golang.org
 [cosign]: https://github.com/sigstore/cosign
