@@ -1,12 +1,23 @@
 # pkcs11-go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/eclipse-keypont/pkcs11-go.svg)](https://pkg.go.dev/github.com/eclipse-keypont/pkcs11-go)
-[![Build](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
-[![Lint](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
-[![Secret Scan](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
-[![Release](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml/badge.svg)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/eclipse-keypont/pkcs11-go/badge)](https://scorecard.dev/viewer/?uri=github.com/eclipse-keypont/pkcs11-go)
-[![GitHub release](https://img.shields.io/github/v/release/eclipse-keypont/pkcs11-go)](https://github.com/eclipse-keypont/pkcs11-go/releases/latest)
+<!-- Badges: every one is drawn by shields.io with style=flat-square, so they share a height, a
+     typeface and a corner radius. GitHub's own actions/workflows/*/badge.svg, pkg.go.dev's badge
+     and api.scorecard.dev's badge each render at their own metrics and take no style parameter,
+     which is why the shields.io equivalents are used instead. The two rows are deliberate: what
+     the project is, then whether it is healthy. Every URL in this file is an absolute
+     eclipse-keypont one on purpose, so a fork's README keeps pointing at upstream. -->
+[![Licence](https://img.shields.io/github/license/eclipse-keypont/pkcs11-go?style=flat-square&logo=opensourceinitiative&logoColor=white&color=1f6feb)](./LICENSE)
+[![Go Reference](https://img.shields.io/badge/pkg.go.dev-reference-007d9c?style=flat-square&logo=go&logoColor=white)](https://pkg.go.dev/github.com/eclipse-keypont/pkcs11-go)
+[![Release](https://img.shields.io/github/v/release/eclipse-keypont/pkcs11-go?style=flat-square&logo=github&logoColor=white&color=1f6feb)](https://github.com/eclipse-keypont/pkcs11-go/releases/latest)
+
+[![Build](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=build)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
+[![Lint](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/lint.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=lint)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
+[![Vulnerability scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/govulncheck.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=vulnerability%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/govulncheck.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/codeql.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=codeql)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/codeql.yml)
+[![Fuzz](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/fuzz.yml?style=flat-square&logo=githubactions&logoColor=white&label=fuzz)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/fuzz.yml)
+[![Secret scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/secret-scan.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=secret%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
+[![Release build](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/release.yml?style=flat-square&logo=githubactions&logoColor=white&label=release%20build)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/release.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/eclipse-keypont/pkcs11-go?style=flat-square&logo=openssf&logoColor=white&label=openssf%20scorecard)](https://scorecard.dev/viewer/?uri=github.com/eclipse-keypont/pkcs11-go)
 
 A Go binding for the [OASIS PKCS #11 (Cryptoki) v3.2][spec] cryptographic token
 interface, including post-quantum (ML-KEM / ML-DSA) and other v3.2 additions.
