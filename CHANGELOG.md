@@ -16,6 +16,52 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-17
+
+Security release: fixes six findings from the Synapse hunt of the `cryptoki`
+package. None change the exported Go API; all are internal cgo memory-safety,
+input-validation, and loader-hardening fixes.
+
+### Security
+
+- `GetAttributeValue` scrubbed each attribute's buffer using the length the
+  token wrote back (`ulValueLen`) rather than the size that was allocated, so a
+  token that reported a larger length left the tail of the buffer unscrubbed and
+  could steer the `zfree`/`ck_memzero` span past the allocation (CWE-787). The
+  allocation size is now recorded separately from the `CK_ATTRIBUTE` and used for
+  both scrubbing and the copy back into Go.
+- `outOp` — the two-pass length-query helper behind `Encrypt`, `Decrypt`,
+  `Digest`, `Sign`, `GenerateRandom`, and friends — freed its scratch buffer
+  using the mutable `*CK_ULONG` the callback fills in, and trusted that same
+  length when copying the result into Go. A token that grew the length on the
+  data pass could make `C.GoBytes` read past the allocation (CWE-787). The
+  allocation capacity is now saved before the callback and used for cleanup, and
+  the returned length is bounds-checked against it.
+- `GetAttributeValue` passed nested array attributes (`CKA_WRAP_TEMPLATE`,
+  `CKA_UNWRAP_TEMPLATE`, `CKA_DERIVE_TEMPLATE`, `CKA_ALLOWED_MECHANISMS`, or any
+  type with `CKF_ARRAY_ATTRIBUTE` set) to the native call with their `pValue`
+  left uninitialized, since the Go side never allocates for the nested template
+  (CWE-824). Array attributes are now rejected up front with an error rather than
+  handed to the token.
+- `outOp` returned an empty result immediately when the sizing pass reported zero
+  bytes, skipping the data pass entirely — so a zero-length `Encrypt`/`Sign`/
+  `Digest` never ran the operation and never checked its return code (CWE-345).
+  The data pass now always runs (allocating at least one byte to advertise a
+  non-nil buffer), and its return status is checked before returning.
+- The Windows module loader used `LOAD_WITH_ALTERED_SEARCH_PATH`, which lets a
+  PKCS #11 module's DLL dependencies resolve from the application's working
+  directory and other untrusted search locations (CWE-427). `LoadLibraryExA` now
+  uses `LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32`, so
+  dependencies resolve only from the module's own directory and the system
+  directory. An empty module path is rejected up front.
+
+### Fixed
+
+- The integration test harness (`setupToken`) initialized the first free slot
+  unconditionally, which would erase an already-initialized token if one was
+  present (CWE-20). It now inspects each slot's token info and refuses to proceed
+  unless it finds one not marked `CKF_TOKEN_INITIALIZED`.
+
 ## [1.1.0] - 2026-09-04
 
 The final release of the 1.1.0 line. This section lists everything since 1.0.0,
@@ -116,7 +162,8 @@ specification and its C headers, with no code copied from existing bindings.
   and IPR policy for the three headers vendored verbatim under
   `internal/headers/`.
 
-[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0
 [1.1.0-rc1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0-rc1
 [1.0.0]: https://github.com/eclipse-keypont/pkcs11-go/releases/tag/v1.0.0
