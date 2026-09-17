@@ -137,6 +137,19 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	if n == 0 {
 		return nil, nil
 	}
+	// Array attributes (CKA_WRAP_TEMPLATE, CKA_UNWRAP_TEMPLATE,
+	// CKA_DERIVE_TEMPLATE, CKA_ALLOWED_MECHANISMS, ...) carry arrays of
+	// CK_ATTRIBUTE structures rather than opaque bytes. This API only supports
+	// flat byte values: the value buffer is allocated with uninitialized C.malloc
+	// memory, and a provider supporting nested templates would interpret the
+	// nested pValue/ulValueLen fields as caller-supplied buffer descriptors and
+	// dereference indeterminate pointers. Reject these types up front rather than
+	// passing uninitialized descriptors to native code.
+	for _, a := range tmpl {
+		if a.Type&CKF_ARRAY_ATTRIBUTE != 0 {
+			return nil, fmt.Errorf("cryptoki: GetAttributeValue: array attribute 0x%x is not supported", a.Type)
+		}
+	}
 	arr := (*C.CK_ATTRIBUTE)(C.malloc(C.size_t(n) * C.size_t(unsafe.Sizeof(C.CK_ATTRIBUTE{}))))
 	defer C.free(unsafe.Pointer(arr))
 	list := unsafe.Slice(arr, n)
