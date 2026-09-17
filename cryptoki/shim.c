@@ -156,7 +156,23 @@ ckModule *ck_load(const char *path, CK_RV *rv, char *errbuf, size_t errlen) {
 	}
 
 #if defined(_WIN32)
-	m->dl = (void *)LoadLibraryExA(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+	/* LOAD_WITH_ALTERED_SEARCH_PATH prioritizes the module's directory but does
+	 * not restrict dependency resolution to trusted directories: under the
+	 * default Windows search policy resolution can still fall back to the
+	 * current working directory and PATH, so a DLL planted in a searched
+	 * directory could take precedence over a legitimate dependency. Require an
+	 * absolute module path and use the restricted search flags
+	 * LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR (resolve dependencies from the loaded
+	 * module's directory) together with LOAD_LIBRARY_SEARCH_SYSTEM32 (and the
+	 * system directory), which omits the working directory and PATH. */
+	if (path == NULL || path[0] == '\0') {
+		*rv = CKR_ARGUMENTS_BAD;
+		ck_set_err(errbuf, errlen, "module path is empty");
+		free(m);
+		return NULL;
+	}
+	DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32;
+	m->dl = (void *)LoadLibraryExA(path, NULL, flags);
 #else
 	m->dl = dlopen(path, RTLD_NOW | RTLD_LOCAL);
 #endif
