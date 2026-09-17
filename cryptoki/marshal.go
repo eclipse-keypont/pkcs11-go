@@ -189,11 +189,23 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		return nil, err
 	}
 	for retries := 0; retries < maxRetries; retries++ {
-		if n == 0 {
-			return []byte{}, nil
-		}
 		if uint64(n) > maxOutBuf {
 			return nil, fmt.Errorf("cryptoki: output size %d exceeds limit %d", uint64(n), uint64(maxOutBuf))
+		}
+		// The NULL-output call above is a sizing pass, not necessarily
+		// execution or finalization of the cryptographic operation. When it
+		// reports zero bytes we must still run the data pass: for
+		// Decrypt/DecryptFinal an AEAD provider may report zero plaintext
+		// bytes for tag-only ciphertext while deferring tag verification until
+		// the data pass, so returning success here would bypass authentication
+		// and could leave the token's operation active. Allocate at least one
+		// byte to obtain a non-NULL output pointer, advertise a zero-length
+		// output capacity, and check the operation's return status before
+		// returning an empty result.
+		want := n
+		cap := n
+		if cap == 0 {
+			cap = 1
 		}
 		// cap is the allocation size. Save it before the callback, which
 		// receives &n and may overwrite it: on a non-CKR_BUFFER_TOO_SMALL error
@@ -201,8 +213,10 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		// it for cleanup could write past the allocation. Always scrub and free
 		// using cap, and require a successful returned length to fit both cap
 		// and maxOutBuf before copying it out.
-		cap := n
 		buf := C.malloc(cap)
+		// Advertise the real output capacity (zero when sizing reported none)
+		// so the provider does not write past the allocation.
+		n = want
 		rv := uint(call((C.CK_BYTE_PTR)(buf), &n))
 		if rv == CKR_BUFFER_TOO_SMALL {
 			// n now holds the larger required size; scrub the old allocation
@@ -222,6 +236,10 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		if n > cap || uint64(n) > maxOutBuf {
 			zfree(buf, cap)
 			return nil, fmt.Errorf("cryptoki: output size %d exceeds allocation %d", uint64(n), uint64(cap))
+		}
+		if n == 0 {
+			zfree(buf, cap)
+			return []byte{}, nil
 		}
 		out := C.GoBytes(buf, C.int(n))
 		zfree(buf, cap)
