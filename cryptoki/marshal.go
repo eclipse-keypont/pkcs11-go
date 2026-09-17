@@ -203,17 +203,17 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		// output capacity, and check the operation's return status before
 		// returning an empty result.
 		want := n
-		cap := n
-		if cap == 0 {
-			cap = 1
+		allocCap := n
+		if allocCap == 0 {
+			allocCap = 1
 		}
-		// cap is the allocation size. Save it before the callback, which
+		// allocCap is the allocation size. Save it before the callback, which
 		// receives &n and may overwrite it: on a non-CKR_BUFFER_TOO_SMALL error
 		// the returned length need not be valid allocation metadata, and using
 		// it for cleanup could write past the allocation. Always scrub and free
-		// using cap, and require a successful returned length to fit both cap
-		// and maxOutBuf before copying it out.
-		buf := C.malloc(cap)
+		// using allocCap, and require a successful returned length to fit both
+		// allocCap and maxOutBuf before copying it out.
+		buf := C.malloc(allocCap)
 		// Advertise the real output capacity (zero when sizing reported none)
 		// so the provider does not write past the allocation.
 		n = want
@@ -221,28 +221,28 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		if rv == CKR_BUFFER_TOO_SMALL {
 			// n now holds the larger required size; scrub the old allocation
 			// using its saved capacity before freeing it, then reallocate.
-			zfree(buf, cap)
+			zfree(buf, allocCap)
 			if uint64(n) > maxOutBuf {
 				return nil, fmt.Errorf("cryptoki: output size %d exceeds limit %d", uint64(n), uint64(maxOutBuf))
 			}
 			continue
 		}
 		if err := toError(rv); err != nil {
-			zfree(buf, cap)
+			zfree(buf, allocCap)
 			return nil, err
 		}
 		// A successful call must not report more than we allocated or than the
 		// limit allows; otherwise C.GoBytes would read past the buffer.
-		if n > cap || uint64(n) > maxOutBuf {
-			zfree(buf, cap)
-			return nil, fmt.Errorf("cryptoki: output size %d exceeds allocation %d", uint64(n), uint64(cap))
+		if n > allocCap || uint64(n) > maxOutBuf {
+			zfree(buf, allocCap)
+			return nil, fmt.Errorf("cryptoki: output size %d exceeds allocation %d", uint64(n), uint64(allocCap))
 		}
 		if n == 0 {
-			zfree(buf, cap)
+			zfree(buf, allocCap)
 			return []byte{}, nil
 		}
 		out := C.GoBytes(buf, C.int(n))
-		zfree(buf, cap)
+		zfree(buf, allocCap)
 		return out, nil
 	}
 	return nil, fmt.Errorf("cryptoki: outOp: CKR_BUFFER_TOO_SMALL after %d retries", maxRetries)
