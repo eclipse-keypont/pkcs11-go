@@ -12,10 +12,17 @@ jobs:
   build-test:
     name: Build & test (Go ${{ matrix.go }})
     runs-on: ubuntu-latest
+    # GOTOOLCHAIN=local stops the go command from auto-downloading the version
+    # named by the `toolchain` line in go.mod. Without it every matrix entry
+    # silently switches to that toolchain and the matrix tests one version.
+    env:
+      GOTOOLCHAIN: local
     strategy:
       fail-fast: false
       matrix:
-        go: ['1.25', '1.26']
+        # Oldest supported (must match the `go` directive in go.mod), previous
+        # stable, current stable.
+        go: ['1.21', '1.26', '1.27']
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
