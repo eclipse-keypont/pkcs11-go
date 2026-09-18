@@ -127,11 +127,34 @@ func setupToken() error {
 	if len(free) == 0 {
 		return fmt.Errorf("no slots reported by module")
 	}
-	if err := ctx.InitToken(free[0], testSOPin, testLabel); err != nil {
+	// GetSlotList(false) returns all slots with a token present, not only
+	// uninitialized ones. PKCS11_MODULE can select a provider that does not
+	// honor SOFTHSM2_CONF, so its first slot may hold an existing token whose
+	// SO PIN happens to match the hardcoded testSOPin. Calling InitToken on it
+	// would destroy its existing keys and objects. Pick a slot whose token is
+	// not yet initialized rather than assuming the first slot is free.
+	var slot SlotID
+	found := false
+	for _, s := range free {
+		ti, err := ctx.GetTokenInfo(s)
+		if err != nil {
+			return fmt.Errorf("GetTokenInfo(%d): %w", s, err)
+		}
+		if ti.Flags&CKF_TOKEN_INITIALIZED == 0 {
+			slot, found = s, true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("no uninitialized token slot available; refusing to erase an existing token")
+	}
+	if err := ctx.InitToken(slot, testSOPin, testLabel); err != nil {
 		return fmt.Errorf("InitToken: %w", err)
 	}
 
-	slot, err := slotForLabel(ctx, testLabel)
+	// Resolve the slot against the freshly initialized token: InitToken may
+	// renumber slots, so the value chosen above is not reused.
+	slot, err = slotForLabel(ctx, testLabel)
 	if err != nil {
 		return err
 	}

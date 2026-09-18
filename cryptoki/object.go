@@ -137,6 +137,19 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	if n == 0 {
 		return nil, nil
 	}
+	// Array attributes (CKA_WRAP_TEMPLATE, CKA_UNWRAP_TEMPLATE,
+	// CKA_DERIVE_TEMPLATE, CKA_ALLOWED_MECHANISMS, ...) carry arrays of
+	// CK_ATTRIBUTE structures rather than opaque bytes. This API only supports
+	// flat byte values: the value buffer is allocated with uninitialized C.malloc
+	// memory, and a provider supporting nested templates would interpret the
+	// nested pValue/ulValueLen fields as caller-supplied buffer descriptors and
+	// dereference indeterminate pointers. Reject these types up front rather than
+	// passing uninitialized descriptors to native code.
+	for _, a := range tmpl {
+		if a.Type&CKF_ARRAY_ATTRIBUTE != 0 {
+			return nil, fmt.Errorf("cryptoki: GetAttributeValue: array attribute 0x%x is not supported", a.Type)
+		}
+	}
 	arr := (*C.CK_ATTRIBUTE)(C.malloc(C.size_t(n) * C.size_t(unsafe.Sizeof(C.CK_ATTRIBUTE{}))))
 	defer C.free(unsafe.Pointer(arr))
 	list := unsafe.Slice(arr, n)
@@ -162,15 +175,29 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	}
 
 	unavailable := C.CK_ULONG(C.CK_UNAVAILABLE_INFORMATION)
+
+	// allocs records each value buffer's pointer and allocation size separately
+	// from the CK_ATTRIBUTE structures. The second C_GetAttributeValue call can
+	// overwrite ulValueLen — for example with CK_UNAVAILABLE_INFORMATION when an
+	// attribute becomes sensitive between the two calls, or with a length that
+	// no longer fits — so the allocation size must be retained and used for
+	// cleanup rather than the possibly-mutated ulValueLen. Scrubbing with a
+	// changed length could write past the allocation and corrupt the C heap.
+	type alloc struct {
+		p unsafe.Pointer
+		n C.CK_ULONG
+	}
+	allocs := make([]alloc, n)
 	for i := range list {
 		if list[i].ulValueLen != unavailable && list[i].ulValueLen > 0 {
 			list[i].pValue = C.CK_VOID_PTR(C.malloc(list[i].ulValueLen))
+			allocs[i] = alloc{unsafe.Pointer(list[i].pValue), list[i].ulValueLen}
 		}
 	}
 	defer func() {
-		for i := range list {
-			if list[i].pValue != nil {
-				zfree(unsafe.Pointer(list[i].pValue), list[i].ulValueLen)
+		for i := range allocs {
+			if allocs[i].p != nil {
+				zfree(allocs[i].p, allocs[i].n)
 			}
 		}
 	}()
@@ -186,8 +213,16 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	out := make([]*Attribute, n)
 	for i := range list {
 		a := &Attribute{Type: uint(list[i]._type)}
-		if list[i].pValue != nil && list[i].ulValueLen != unavailable && list[i].ulValueLen > 0 {
-			a.Value = C.GoBytes(unsafe.Pointer(list[i].pValue), C.int(list[i].ulValueLen))
+		// Copy a value only when the buffer was allocated, the second call did
+		// not report the attribute unavailable, and the returned length still
+		// fits both the allocation and the C.int length C.GoBytes accepts. A
+		// returned length larger than the allocation would read past the buffer;
+		// one that overflows C.int would mis-size the copy.
+		if allocs[i].p != nil && list[i].ulValueLen != unavailable &&
+			list[i].ulValueLen <= allocs[i].n {
+			if cn := C.int(list[i].ulValueLen); cn > 0 {
+				a.Value = C.GoBytes(unsafe.Pointer(list[i].pValue), cn)
+			}
 		}
 		out[i] = a
 	}
