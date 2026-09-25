@@ -13,6 +13,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=build)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/ci.yml)
 [![Lint](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/lint.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=lint)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/lint.yml)
 [![Vulnerability scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/govulncheck.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=vulnerability%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/govulncheck.yml)
+[![Security scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/gosec.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=security%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/gosec.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/codeql.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=codeql)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/codeql.yml)
 [![Fuzz](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/fuzz.yml?style=flat-square&logo=githubactions&logoColor=white&label=fuzz)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/fuzz.yml)
 [![Secret scan](https://img.shields.io/github/actions/workflow/status/eclipse-keypont/pkcs11-go/secret-scan.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=secret%20scan)](https://github.com/eclipse-keypont/pkcs11-go/actions/workflows/secret-scan.yml)
@@ -300,7 +301,24 @@ make lint-fix   # auto-fix the mechanically-fixable findings
 Linting compiles cgo, so a C toolchain (`gcc`/`clang`) is required; no HSM is
 needed.
 
+## Security scanning
+
+CI runs [gosec][gosec] (v2) via `.github/workflows/gosec.yml` — a static-analysis
+security scanner that flags insecure code patterns in this module itself,
+complementing the [govulncheck][govulncheck] dependency-CVE scan. Run the same
+check locally before pushing:
+
+```bash
+# One-time install (matches CI's pinned version):
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+# Ensure $(go env GOPATH)/bin is on your PATH, then:
+
+make gosec   # report issues (same as the CI Security Scan workflow)
+```
+
 [golangci]: https://golangci-lint.run
+[gosec]: https://github.com/securego/gosec
+[govulncheck]: https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck
 
 ## Testing against a real token
 

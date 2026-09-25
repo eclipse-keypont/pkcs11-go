@@ -17,7 +17,7 @@ HEADER_DIR   := internal/headers
 CHANGELOG    := CHANGELOG.md
 
 .PHONY: all headers refresh-headers generate build vet test integration integration-v32 \
-        lint lint-fix govulncheck clean-headers version next release
+        lint lint-fix gosec govulncheck clean-headers version next release
 
 all: headers generate build test
 
@@ -109,6 +109,25 @@ GOVULNCHECK ?= govulncheck
 govulncheck:
 	$(call require,$(GOVULNCHECK),go install golang.org/x/vuln/cmd/govulncheck@latest)
 	$(GOVULNCHECK) -show verbose ./...
+
+# ── Security scan ────────────────────────────────────────────────────────────
+# Runs gosec (https://github.com/securego/gosec) — a static-analysis security
+# scanner for Go code. Complements govulncheck (dependency CVEs) by flagging
+# insecure code patterns in this module itself — the same check as the CI gosec
+# workflow (.github/workflows/gosec.yml).
+#
+# -exclude-generated skips machine-produced files: the cgo wrappers in the Go
+# build cache (cryptoki/shim.c) and the committed zconst.go/zerror.go. Without
+# it gosec reports a dozen G115 integer-overflow false positives in the cgo
+# output, which cannot carry a #nosec annotation.
+#
+# Install gosec:
+#   go install github.com/securego/gosec/v2/cmd/gosec@latest
+GOSEC ?= gosec
+
+gosec:
+	$(call require,$(GOSEC),go install github.com/securego/gosec/v2/cmd/gosec@latest)
+	$(GOSEC) -exclude-generated ./...
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 test:
