@@ -57,6 +57,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("genconst: rendering %s: %v", outPath, err)
 	}
+	// #nosec G306 -- generated Go source is committed to the repo, so 0644 is
+	// required (world-readable, not a secret).
 	if err := os.WriteFile(outPath, src, 0o644); err != nil {
 		log.Fatalf("genconst: writing %s: %v", outPath, err)
 	}
@@ -66,6 +68,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("genconst: rendering %s: %v", errPath, err)
 	}
+	// #nosec G306 -- generated Go source is committed to the repo, so 0644 is
+	// required (world-readable, not a secret).
 	if err := os.WriteFile(errPath, errSrc, 0o644); err != nil {
 		log.Fatalf("genconst: writing %s: %v", errPath, err)
 	}
@@ -74,6 +78,8 @@ func main() {
 
 // parse reads every accepted CK* object-like macro from the header.
 func parse(path string) ([]define, error) {
+	// #nosec G304 -- path is a build-time CLI flag pointing at the vendored
+	// OASIS header; this is a code generator, not a network-facing handler.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

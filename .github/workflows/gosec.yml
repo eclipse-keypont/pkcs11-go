@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 The Eclipse Foundation and pkcs11-go Authors
+# SPDX-License-Identifier: MIT
+#
+name: Security Scan (gosec)
+
+# Runs gosec (https://github.com/securego/gosec) — a static-analysis security
+# scanner for Go code. Complements the govulncheck workflow (dependency CVEs) by
+# flagging insecure code patterns in this module itself. Runs on PRs and weekly
+# so newly added rules surface even without a code change.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '27 6 * * 1'
+  workflow_dispatch:
+  # Allows the Release pipeline to gate a tag on a passing security scan.
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  gosec:
+    name: gosec
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@deb54465fea23d19a77f037e11e6589021f8501d # v2.29.0
+
+      # -exclude-generated skips machine-produced files: the cgo wrappers in the
+      # Go build cache (cryptoki/shim.c) and the committed zconst.go/zerror.go.
+      # Without it gosec reports a dozen G115 integer-overflow false positives
+      # in the cgo output, which cannot carry a #nosec annotation.
+      - name: Run gosec
+        run: gosec -exclude-generated ./...
