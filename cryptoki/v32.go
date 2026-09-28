@@ -9,7 +9,11 @@ package cryptoki
 */
 import "C"
 
-import "unsafe"
+import (
+	"fmt"
+	"math"
+	"unsafe"
+)
 
 // This file implements the PKCS #11 v3.2 entry points. They are dispatched
 // through the module's 3.2 function list, which the loader resolves via
@@ -44,7 +48,16 @@ func (c *Ctx) EncapsulateKey(sh SessionHandle, m *Mechanism, pubKey ObjectHandle
 	var buf unsafe.Pointer
 	var ctPtr C.CK_BYTE_PTR
 	if ctLen > 0 {
-		buf = C.malloc(ctLen)
+		// ctLen is module-reported. Bound it by maxOutBuf (as outOp does) and
+		// by the C.int range C.GoBytes accepts, so a bogus length cannot drive
+		// an unbounded allocation or a mis-sized copy.
+		if uint64(ctLen) > maxOutBuf {
+			return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: ciphertext size %d exceeds limit %d", uint64(ctLen), uint64(maxOutBuf))
+		}
+		if uint64(ctLen) > math.MaxInt32 {
+			return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: ciphertext size %d exceeds C.int range", uint64(ctLen))
+		}
+		buf = cMalloc(ctLen)
 		defer C.free(buf)
 		ctPtr = (C.CK_BYTE_PTR)(buf)
 	}

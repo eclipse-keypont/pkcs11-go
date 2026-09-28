@@ -73,6 +73,12 @@ func (c *Ctx) GetSlotList(tokenPresent bool) ([]SlotID, error) {
 	if count == 0 {
 		return nil, nil
 	}
+	// The count comes from the module; a malicious or buggy one could report an
+	// enormous value and make us allocate far beyond any real token's slot
+	// count. Reject it before allocating.
+	if uint64(count) > maxListLen {
+		return nil, fmt.Errorf("cryptoki: GetSlotList: module reported %d slots, exceeds limit %d", uint64(count), uint64(maxListLen))
+	}
 
 	list := make([]C.CK_SLOT_ID, count)
 	if err := toError(uint(C.ck_get_slot_list(m, present, &list[0], &count))); err != nil {
@@ -154,6 +160,11 @@ func (c *Ctx) GetMechanismList(slot SlotID) ([]uint, error) {
 	}
 	if count == 0 {
 		return nil, nil
+	}
+	// As with GetSlotList, the module supplies the count; bound it before
+	// allocating so a bogus value cannot drive an unbounded allocation.
+	if uint64(count) > maxListLen {
+		return nil, fmt.Errorf("cryptoki: GetMechanismList: module reported %d mechanisms, exceeds limit %d", uint64(count), uint64(maxListLen))
 	}
 
 	list := make([]C.CK_MECHANISM_TYPE, count)

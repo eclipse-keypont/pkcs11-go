@@ -57,7 +57,7 @@ func NewGCMParams(iv, aad []byte, tagBits int) *GCMParams {
 	if tagBits <= 0 || tagBits > 128 || tagBits%8 != 0 {
 		panic(fmt.Sprintf("cryptoki: NewGCMParams: tagBits must be byte-aligned in (0,128], got %d", tagBits))
 	}
-	gp := (*C.CK_GCM_PARAMS)(C.malloc(C.size_t(unsafe.Sizeof(C.CK_GCM_PARAMS{}))))
+	gp := (*C.CK_GCM_PARAMS)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_GCM_PARAMS{}))))
 	ivPtr, ivLen := cBytes(iv)
 	aadPtr, aadLen := cBytes(aad)
 	gp.pIv = (C.CK_BYTE_PTR)(ivPtr)
@@ -82,8 +82,8 @@ func NewGCMParamsHSMIV(ivLen int, aad []byte, tagBits int) *GCMParams {
 	if ivLen <= 0 {
 		panic(fmt.Sprintf("cryptoki: NewGCMParamsHSMIV: ivLen must be positive, got %d", ivLen))
 	}
-	gp := (*C.CK_GCM_PARAMS)(C.malloc(C.size_t(unsafe.Sizeof(C.CK_GCM_PARAMS{}))))
-	ivPtr := C.malloc(C.size_t(ivLen))
+	gp := (*C.CK_GCM_PARAMS)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_GCM_PARAMS{}))))
+	ivPtr := cMalloc(C.size_t(ivLen))
 	C.ck_memzero(ivPtr, C.size_t(ivLen))
 	aadPtr, aadLen := cBytes(aad)
 	gp.pIv = (C.CK_BYTE_PTR)(ivPtr)
@@ -152,7 +152,7 @@ func NewOAEPParams(hashAlg, mgf, source uint, sourceData []byte) MechanismParams
 }
 
 func (p *oaepParams) build() (unsafe.Pointer, C.CK_ULONG, func()) {
-	op := (*C.CK_RSA_PKCS_OAEP_PARAMS)(C.malloc(C.size_t(unsafe.Sizeof(C.CK_RSA_PKCS_OAEP_PARAMS{}))))
+	op := (*C.CK_RSA_PKCS_OAEP_PARAMS)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_RSA_PKCS_OAEP_PARAMS{}))))
 	src, srcLen := cBytes(p.sourceData)
 	op.hashAlg = C.CK_MECHANISM_TYPE(p.hashAlg)
 	op.mgf = C.CK_RSA_PKCS_MGF_TYPE(p.mgf)
@@ -182,7 +182,7 @@ func NewPSSParams(hashAlg, mgf uint, saltLen int) MechanismParams {
 }
 
 func (p *pssParams) build() (unsafe.Pointer, C.CK_ULONG, func()) {
-	pp := (*C.CK_RSA_PKCS_PSS_PARAMS)(C.malloc(C.size_t(unsafe.Sizeof(C.CK_RSA_PKCS_PSS_PARAMS{}))))
+	pp := (*C.CK_RSA_PKCS_PSS_PARAMS)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_RSA_PKCS_PSS_PARAMS{}))))
 	pp.hashAlg = C.CK_MECHANISM_TYPE(p.hashAlg)
 	pp.mgf = C.CK_RSA_PKCS_MGF_TYPE(p.mgf)
 	pp.sLen = C.CK_ULONG(p.saltLen)
@@ -207,7 +207,7 @@ func NewECDH1DeriveParams(kdf uint, sharedData, publicData []byte) MechanismPara
 }
 
 func (p *ecdh1Params) build() (unsafe.Pointer, C.CK_ULONG, func()) {
-	ep := (*C.CK_ECDH1_DERIVE_PARAMS)(C.malloc(C.size_t(unsafe.Sizeof(C.CK_ECDH1_DERIVE_PARAMS{}))))
+	ep := (*C.CK_ECDH1_DERIVE_PARAMS)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_ECDH1_DERIVE_PARAMS{}))))
 	shared, sharedLen := cBytes(p.sharedData)
 	public, publicLen := cBytes(p.publicData)
 	ep.kdf = C.CK_EC_KDF_TYPE(p.kdf)
