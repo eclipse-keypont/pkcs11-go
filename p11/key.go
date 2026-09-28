@@ -42,6 +42,9 @@ func (k PrivateKey) Object() Object { return Object(k) }
 func (k SecretKey) Encrypt(mechanism *cryptoki.Mechanism, plaintext []byte) ([]byte, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	if err := k.session.ctx.EncryptInit(k.session.handle, mechanism, k.handle); err != nil {
 		return nil, err
 	}
@@ -52,6 +55,9 @@ func (k SecretKey) Encrypt(mechanism *cryptoki.Mechanism, plaintext []byte) ([]b
 func (k SecretKey) Decrypt(mechanism *cryptoki.Mechanism, ciphertext []byte) ([]byte, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	if err := k.session.ctx.DecryptInit(k.session.handle, mechanism, k.handle); err != nil {
 		return nil, err
 	}
@@ -62,6 +68,9 @@ func (k SecretKey) Decrypt(mechanism *cryptoki.Mechanism, ciphertext []byte) ([]
 func (k SecretKey) Wrap(mechanism *cryptoki.Mechanism, key Object) ([]byte, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	return k.session.ctx.WrapKey(k.session.handle, mechanism, k.handle, key.handle)
 }
 
@@ -69,6 +78,9 @@ func (k SecretKey) Wrap(mechanism *cryptoki.Mechanism, key Object) ([]byte, erro
 func (k SecretKey) Unwrap(mechanism *cryptoki.Mechanism, wrapped []byte, template []*cryptoki.Attribute) (Object, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return Object{}, err
+	}
 	h, err := k.session.ctx.UnwrapKey(k.session.handle, mechanism, k.handle, wrapped, template)
 	if err != nil {
 		return Object{}, err
@@ -82,6 +94,9 @@ func (k SecretKey) Unwrap(mechanism *cryptoki.Mechanism, wrapped []byte, templat
 func (k PublicKey) Encrypt(mechanism *cryptoki.Mechanism, plaintext []byte) ([]byte, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	if err := k.session.ctx.EncryptInit(k.session.handle, mechanism, k.handle); err != nil {
 		return nil, err
 	}
@@ -93,6 +108,9 @@ func (k PublicKey) Encrypt(mechanism *cryptoki.Mechanism, plaintext []byte) ([]b
 func (k PublicKey) Verify(mechanism *cryptoki.Mechanism, message, signature []byte) error {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return err
+	}
 	if err := k.session.ctx.VerifyInit(k.session.handle, mechanism, k.handle); err != nil {
 		return err
 	}
@@ -104,6 +122,9 @@ func (k PublicKey) Verify(mechanism *cryptoki.Mechanism, message, signature []by
 func (k PublicKey) VerifyStateless(mechanism *cryptoki.Mechanism, message, signature []byte) error {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return err
+	}
 	if err := k.session.ctx.VerifySignatureInit(k.session.handle, mechanism, k.handle, signature); err != nil {
 		return err
 	}
@@ -115,6 +136,9 @@ func (k PublicKey) VerifyStateless(mechanism *cryptoki.Mechanism, message, signa
 func (k PublicKey) Encapsulate(mechanism *cryptoki.Mechanism, derivedKeyTemplate []*cryptoki.Attribute) ([]byte, SecretKey, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, SecretKey{}, err
+	}
 	ct, h, err := k.session.ctx.EncapsulateKey(k.session.handle, mechanism, k.handle, derivedKeyTemplate)
 	if err != nil {
 		return nil, SecretKey{}, err
@@ -128,6 +152,9 @@ func (k PublicKey) Encapsulate(mechanism *cryptoki.Mechanism, derivedKeyTemplate
 func (k PrivateKey) Sign(mechanism *cryptoki.Mechanism, message []byte) ([]byte, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	if err := k.session.ctx.SignInit(k.session.handle, mechanism, k.handle); err != nil {
 		return nil, err
 	}
@@ -138,6 +165,9 @@ func (k PrivateKey) Sign(mechanism *cryptoki.Mechanism, message []byte) ([]byte,
 func (k PrivateKey) Decrypt(mechanism *cryptoki.Mechanism, ciphertext []byte) ([]byte, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	if err := k.session.ctx.DecryptInit(k.session.handle, mechanism, k.handle); err != nil {
 		return nil, err
 	}
@@ -148,6 +178,9 @@ func (k PrivateKey) Decrypt(mechanism *cryptoki.Mechanism, ciphertext []byte) ([
 func (k PrivateKey) Derive(mechanism *cryptoki.Mechanism, template []*cryptoki.Attribute) (SecretKey, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return SecretKey{}, err
+	}
 	h, err := k.session.ctx.DeriveKey(k.session.handle, mechanism, k.handle, template)
 	if err != nil {
 		return SecretKey{}, err
@@ -160,6 +193,9 @@ func (k PrivateKey) Derive(mechanism *cryptoki.Mechanism, template []*cryptoki.A
 func (k PrivateKey) Decapsulate(mechanism *cryptoki.Mechanism, ciphertext []byte, derivedKeyTemplate []*cryptoki.Attribute) (SecretKey, error) {
 	k.session.mu.Lock()
 	defer k.session.mu.Unlock()
+	if err := k.session.checkOpen(); err != nil {
+		return SecretKey{}, err
+	}
 	h, err := k.session.ctx.DecapsulateKey(k.session.handle, mechanism, k.handle, derivedKeyTemplate, ciphertext)
 	if err != nil {
 		return SecretKey{}, err
