@@ -123,6 +123,39 @@ func Wipe(b []byte) {
 	runtime.KeepAlive(b)
 }
 
+// Mlock pins b into RAM (mlock) so its contents are not written to swap. It is
+// best effort: it returns an error if the platform or the process's RLIMIT_MEMLOCK
+// refuses the request. Call Munlock to release the pages when done.
+//
+// Mlock is a defence-in-depth measure for high-assurance deployments. It cannot
+// make a Go slice a reliable secret store: the garbage collector may move or
+// copy the backing array, and the copy would not be locked. Prefer keeping
+// secrets inside the HSM (non-extractable, sensitive keys) so they never reach
+// process memory at all.
+func Mlock(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	if rc := C.ck_mlock(unsafe.Pointer(&b[0]), C.size_t(len(b))); rc != 0 {
+		return fmt.Errorf("cryptoki: mlock: errno %d", int(rc))
+	}
+	runtime.KeepAlive(b)
+	return nil
+}
+
+// Munlock releases pages previously pinned with Mlock. It is best effort and
+// returns an error if the platform refuses the request.
+func Munlock(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	if rc := C.ck_munlock(unsafe.Pointer(&b[0]), C.size_t(len(b))); rc != 0 {
+		return fmt.Errorf("cryptoki: munlock: errno %d", int(rc))
+	}
+	runtime.KeepAlive(b)
+	return nil
+}
+
 // goVersion converts a C CK_VERSION into the exported Version type.
 func goVersion(v C.CK_VERSION) Version {
 	return Version{Major: byte(v.major), Minor: byte(v.minor)}
