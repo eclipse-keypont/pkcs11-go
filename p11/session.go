@@ -24,6 +24,18 @@ type Session struct {
 	ctx    *cryptoki.Ctx
 	handle cryptoki.SessionHandle
 	mu     sync.Mutex
+	// closed is set by Close. Objects created from this session check it so a
+	// handle cannot be used after the session it belongs to is gone (M-P12).
+	closed bool
+}
+
+// checkOpen reports an error if the session has been closed. The caller must
+// hold s.mu.
+func (s *Session) checkOpen() error {
+	if s.closed {
+		return fmt.Errorf("p11: session is closed")
+	}
+	return nil
 }
 
 // Handle returns the underlying cryptoki session handle, for dropping down to
@@ -87,29 +99,45 @@ func (s *Session) GenerateRandom(length int) ([]byte, error) {
 	return s.ctx.GenerateRandom(s.handle, length)
 }
 
-// Close closes the session (C_CloseSession).
+// Close closes the session (C_CloseSession). It is idempotent: a second call is
+// a no-op. After Close, objects obtained from the session report an error
+// rather than issuing calls on a dead handle.
 func (s *Session) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
 	return s.ctx.CloseSession(s.handle)
 }
 
-// CreateObject creates an object from a template (C_CreateObject).
+// CreateObject creates an object from a template (C_CreateObject). Secure
+// defaults (CKA_SENSITIVE, CKA_EXTRACTABLE, CKA_PRIVATE) are added for any the
+// template does not set (P11).
 func (s *Session) CreateObject(template []*cryptoki.Attribute) (Object, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	h, err := s.ctx.CreateObject(s.handle, template)
+	if err := s.checkOpen(); err != nil {
+		return Object{}, err
+	}
+	h, err := s.ctx.CreateObject(s.handle, withSecureDefaults(template, true))
 	if err != nil {
 		return Object{}, err
 	}
 	return Object{session: s, handle: h}, nil
 }
 
-// GenerateKey generates a secret key (C_GenerateKey).
+// GenerateKey generates a secret key (C_GenerateKey). Secure defaults
+// (CKA_SENSITIVE, CKA_EXTRACTABLE, CKA_PRIVATE) are added for any the template
+// does not set (P11).
 func (s *Session) GenerateKey(mechanism *cryptoki.Mechanism, template []*cryptoki.Attribute) (SecretKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	h, err := s.ctx.GenerateKey(s.handle, mechanism, template)
+	if err := s.checkOpen(); err != nil {
+		return SecretKey{}, err
+	}
+	h, err := s.ctx.GenerateKey(s.handle, mechanism, withSecureDefaults(template, true))
 	if err != nil {
 		return SecretKey{}, err
 	}
@@ -117,10 +145,17 @@ func (s *Session) GenerateKey(mechanism *cryptoki.Mechanism, template []*cryptok
 }
 
 // GenerateKeyPair generates a public/private key pair (C_GenerateKeyPair).
+// Secure defaults are applied to the private template (CKA_SENSITIVE,
+// CKA_EXTRACTABLE, CKA_PRIVATE) and to the public template (CKA_PRIVATE) for
+// any the caller does not set (P11).
 func (s *Session) GenerateKeyPair(mechanism *cryptoki.Mechanism, publicTemplate, privateTemplate []*cryptoki.Attribute) (KeyPair, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	pub, priv, err := s.ctx.GenerateKeyPair(s.handle, mechanism, publicTemplate, privateTemplate)
+	if err := s.checkOpen(); err != nil {
+		return KeyPair{}, err
+	}
+	pub, priv, err := s.ctx.GenerateKeyPair(s.handle, mechanism,
+		withSecureDefaults(publicTemplate, false), withSecureDefaults(privateTemplate, true))
 	if err != nil {
 		return KeyPair{}, err
 	}

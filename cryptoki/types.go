@@ -60,14 +60,26 @@ type Mechanism struct {
 // NewMechanism returns a Mechanism for the given CKM_ identifier. Pass a nil
 // parameter for mechanisms that take none; otherwise pass the raw parameter
 // bytes (e.g. a CBC IV).
+//
+// If a mechanism policy is installed (SetMechanismPolicy), it is consulted
+// here; a rejected mechanism panics, matching the constructor convention used
+// elsewhere in this package (a weak-algorithm selection is a programming error,
+// not a runtime condition).
 func NewMechanism(mechanism uint, parameter []byte) *Mechanism {
+	if err := checkMechanism(mechanism); err != nil {
+		panic(err)
+	}
 	return &Mechanism{Mechanism: mechanism, Parameter: parameter}
 }
 
 // NewMechanismWithParams returns a Mechanism whose parameter is a structured
 // CK_*_PARAMS value built by one of the NewGCMParams / NewOAEPParams /
-// NewECDH1DeriveParams / NewPSSParams constructors.
+// NewECDH1DeriveParams / NewPSSParams constructors. A mechanism policy, if
+// installed, is consulted as in NewMechanism.
 func NewMechanismWithParams(mechanism uint, params MechanismParams) *Mechanism {
+	if err := checkMechanism(mechanism); err != nil {
+		panic(err)
+	}
 	return &Mechanism{Mechanism: mechanism, params: params}
 }
 
