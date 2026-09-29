@@ -36,12 +36,32 @@ type MechanismParams interface {
 // is required for HSMs that write a token-generated IV back into pIv during
 // C_Encrypt (UseGCMIVFromHSM / CloudHSM behaviour). Call IV after Encrypt to
 // retrieve the written-back value; call Free once the operation is complete.
+//
+// Vendor compatibility (P18): the OASIS v3.2 CK_GCM_PARAMS has six fields
+// (pIv, ulIvLen, ulIvBits, pAAD, ulAADLen, ulTagBits) and is 48 bytes on LP64
+// (three pointers plus three CK_ULONGs, all 8 bytes). Some older vendor headers
+// omit ulIvBits and define a five-field struct; passing this struct to such a
+// module misaligns pAAD/ulAADLen. This binding always uses the spec struct from
+// the vendored OASIS header. A module built against a non-conforming header is
+// not supported; GCMParamsSize is exported so callers can assert the layout
+// they are compiling against.
 type GCMParams struct {
 	mu  sync.Mutex
 	gp  *C.CK_GCM_PARAMS
 	iv  unsafe.Pointer
 	aad unsafe.Pointer
+	// inUse counts outstanding build() calls whose returned free has not yet
+	// run. Free defers the actual release while inUse > 0 so it cannot free the
+	// AAD/IV buffers out from under an in-flight Init (M-P10).
+	inUse       int
+	freePending bool
 }
+
+// GCMParamsSize is the size in bytes of the CK_GCM_PARAMS struct this binding
+// passes to the module: 48 on LP64 (Linux/macOS), 36 on LLP64 (Windows 64-bit),
+// 24 on 32-bit targets. It is exported so a caller can detect a vendor header
+// whose layout differs.
+const GCMParamsSize = C.sizeof_CK_GCM_PARAMS
 
 // NewGCMParams returns the parameters for AES-GCM (CKM_AES_GCM): the IV/nonce,
 // optional additional authenticated data, and the authentication tag length in
@@ -95,14 +115,25 @@ func NewGCMParamsHSMIV(ivLen int, aad []byte, tagBits int) *GCMParams {
 	return &GCMParams{gp: gp, iv: ivPtr, aad: aadPtr}
 }
 
-// build implements MechanismParams. The returned free func is a no-op; call
-// Free explicitly once the full operation (Init + Encrypt/Decrypt) is done.
-// Panics if called after Free.
+// build implements MechanismParams. The returned free func only marks the
+// build as finished; call Free explicitly once the full operation (Init +
+// Encrypt/Decrypt) is done. Panics if called after Free.
 func (p *GCMParams) build() (unsafe.Pointer, C.CK_ULONG, func()) {
+	p.mu.Lock()
 	if p.gp == nil {
+		p.mu.Unlock()
 		panic("cryptoki: GCMParams.build called after Free")
 	}
-	return unsafe.Pointer(p.gp), C.CK_ULONG(unsafe.Sizeof(C.CK_GCM_PARAMS{})), func() {}
+	p.inUse++
+	p.mu.Unlock()
+	return unsafe.Pointer(p.gp), C.CK_ULONG(unsafe.Sizeof(C.CK_GCM_PARAMS{})), func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.inUse--
+		if p.inUse == 0 && p.freePending {
+			p.freeLocked()
+		}
+	}
 }
 
 // IV reads the IV currently stored in the C pIv buffer. After C_Encrypt on an
@@ -118,9 +149,25 @@ func (p *GCMParams) IV() []byte {
 
 // Free releases the C memory. Safe to call more than once. Must be called
 // after C_Encrypt or C_Decrypt (and any IV read-back via IV) is complete.
+//
+// If a build() is still outstanding (an Init call in flight), Free defers the
+// release until that build's cleanup runs, so it cannot free the AAD/IV buffers
+// while the module is still reading them (M-P10).
 func (p *GCMParams) Free() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.gp == nil {
+		return
+	}
+	if p.inUse > 0 {
+		p.freePending = true
+		return
+	}
+	p.freeLocked()
+}
+
+// freeLocked releases the C memory. The caller must hold p.mu.
+func (p *GCMParams) freeLocked() {
 	if p.gp == nil {
 		return
 	}
@@ -132,6 +179,7 @@ func (p *GCMParams) Free() {
 	p.aad = nil
 	C.free(unsafe.Pointer(p.gp))
 	p.gp = nil
+	p.freePending = false
 }
 
 // ── RSA-OAEP (CK_RSA_PKCS_OAEP_PARAMS) ───────────────────────────────────────
@@ -178,6 +226,11 @@ type pssParams struct {
 // bytes. The underlying C struct has no pointers, but a typed constructor keeps
 // usage consistent with the other parameter kinds.
 func NewPSSParams(hashAlg, mgf uint, saltLen int) MechanismParams {
+	if saltLen < 0 {
+		// CK_RSA_PKCS_PSS_PARAMS.sLen is a CK_ULONG; a negative int would be
+		// converted to a huge unsigned value and handed to the token (M-P7).
+		panic(fmt.Sprintf("cryptoki: NewPSSParams: saltLen must be non-negative, got %d", saltLen))
+	}
 	return &pssParams{hashAlg: hashAlg, mgf: mgf, saltLen: saltLen}
 }
 
