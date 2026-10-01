@@ -45,6 +45,16 @@ void ck_unload(ckModule *m);
  * material (PINs, plaintext, key bytes). Safe with p == NULL or n == 0. */
 void ck_memzero(void *p, size_t n);
 
+/* ck_mlock pins n bytes at p into RAM (mlock) so secret material is not paged
+ * to swap. Returns 0 on success, a non-zero errno on failure; a no-op that
+ * reports success on platforms without mlock. Best effort — check the result
+ * if the guarantee matters. Safe with p == NULL or n == 0. */
+int ck_mlock(void *p, size_t n);
+
+/* ck_munlock reverses ck_mlock. Returns 0 on success, a non-zero errno on
+ * failure. Safe with p == NULL or n == 0. */
+int ck_munlock(void *p, size_t n);
+
 /* ck_has_v32 reports whether the 3.2 function list was resolved (1) or not (0). */
 int ck_has_v32(ckModule *m);
 

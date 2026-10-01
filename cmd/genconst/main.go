@@ -40,6 +40,19 @@ var defineRE = regexp.MustCompile(`^#define\s+(CK[0-9A-Z_a-z]*)\s+([^/]+?)\s*(?:
 // literal while leaving identifiers and operators untouched.
 var intSuffixRE = regexp.MustCompile(`\b(0[xX][0-9A-Fa-f]+|[0-9]+)[uUlL]+\b`)
 
+// valueRE is the allowlist of characters permitted in a translated macro value.
+// It admits integer literals, CK_* identifiers, the boolean literals, and the C
+// operators that survive translation. It deliberately excludes the characters
+// that could terminate the constant and begin a new Go statement or comment
+// (; { } " ' ` \ and newlines), so a tampered header cannot inject code into the
+// generated source (M-P1).
+var valueRE = regexp.MustCompile("^[0-9A-Za-z_()|&^~+*/<> \t-]+$")
+
+// callRE matches an identifier immediately followed by "(", i.e. a function
+// call. The only call form the header legitimately produces is the all-ones
+// word "^uint(0)"; every other call is rejected (M-P1).
+var callRE = regexp.MustCompile(`[0-9A-Za-z_]\s*\(`)
+
 func main() {
 	var headerPath, outPath, errPath, pkg string
 	flag.StringVar(&headerPath, "header", "internal/headers/pkcs11t.h", "path to OASIS pkcs11t.h")
@@ -94,13 +107,39 @@ func parse(path string) ([]define, error) {
 		if m == nil {
 			continue
 		}
+		value := translate(m[1], m[2])
+		if err := validateValue(m[1], value); err != nil {
+			return nil, fmt.Errorf("%s: %w", m[1], err)
+		}
 		out = append(out, define{
 			name:    m[1],
-			value:   translate(m[1], m[2]),
+			value:   value,
 			comment: cleanComment(m[3]),
 		})
 	}
 	return out, sc.Err()
+}
+
+// validateValue rejects a translated value that is not a safe constant
+// expression. It is the build-time guard against code injection through a
+// tampered pkcs11t.h: the generator splices the value verbatim into a Go const
+// block, so anything outside the constant grammar (a string, a call, a
+// statement, a comment introducer) must fail the build rather than be emitted
+// (M-P1).
+func validateValue(name, v string) error {
+	if v == "" {
+		return fmt.Errorf("%s: empty value", name)
+	}
+	if !valueRE.MatchString(v) {
+		return fmt.Errorf("%s: value %q contains characters outside the constant grammar", name, v)
+	}
+	if strings.Contains(v, "//") || strings.Contains(v, "/*") {
+		return fmt.Errorf("%s: value %q contains a comment introducer", name, v)
+	}
+	if v != "^uint(0)" && callRE.MatchString(v) {
+		return fmt.Errorf("%s: value %q contains a function call", name, v)
+	}
+	return nil
 }
 
 // translate rewrites a C macro value into an equivalent Go expression.
