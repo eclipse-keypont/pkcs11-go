@@ -38,7 +38,7 @@ func (c *Ctx) GenerateRandom(sh SessionHandle, length int) ([]byte, error) {
 		return nil, err
 	}
 	defer release()
-	buf := C.malloc(C.size_t(length))
+	buf := cMalloc(C.size_t(length))
 	defer zfree(buf, C.CK_ULONG(length))
 	rv := C.ck_generate_random(m, C.CK_SESSION_HANDLE(sh), (C.CK_BYTE_PTR)(buf), C.CK_ULONG(length))
 	if err := toError(uint(rv)); err != nil {

@@ -24,6 +24,9 @@ func (o Object) Handle() cryptoki.ObjectHandle { return o.handle }
 func (o Object) Attribute(attributeType uint) ([]byte, error) {
 	o.session.mu.Lock()
 	defer o.session.mu.Unlock()
+	if err := o.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	attrs, err := o.session.ctx.GetAttributeValue(o.session.handle, o.handle,
 		[]*cryptoki.Attribute{cryptoki.NewAttribute(attributeType, nil)})
 	if err != nil {
@@ -45,6 +48,9 @@ func (o Object) Attributes(attributeTypes ...uint) ([]*cryptoki.Attribute, error
 	}
 	o.session.mu.Lock()
 	defer o.session.mu.Unlock()
+	if err := o.session.checkOpen(); err != nil {
+		return nil, err
+	}
 	return o.session.ctx.GetAttributeValue(o.session.handle, o.handle, tmpl)
 }
 
@@ -66,6 +72,9 @@ func (o Object) Value() ([]byte, error) {
 func (o Object) SetAttribute(attributeType uint, value []byte) error {
 	o.session.mu.Lock()
 	defer o.session.mu.Unlock()
+	if err := o.session.checkOpen(); err != nil {
+		return err
+	}
 	return o.session.ctx.SetAttributeValue(o.session.handle, o.handle,
 		[]*cryptoki.Attribute{{Type: attributeType, Value: value}})
 }
@@ -76,6 +85,9 @@ func (o Object) SetAttribute(attributeType uint, value []byte) error {
 func (o Object) Copy(tmpl []*cryptoki.Attribute) (Object, error) {
 	o.session.mu.Lock()
 	defer o.session.mu.Unlock()
+	if err := o.session.checkOpen(); err != nil {
+		return Object{}, err
+	}
 	h, err := o.session.ctx.CopyObject(o.session.handle, o.handle, tmpl)
 	if err != nil {
 		return Object{}, err
@@ -87,5 +99,8 @@ func (o Object) Copy(tmpl []*cryptoki.Attribute) (Object, error) {
 func (o Object) Destroy() error {
 	o.session.mu.Lock()
 	defer o.session.mu.Unlock()
+	if err := o.session.checkOpen(); err != nil {
+		return err
+	}
 	return o.session.ctx.DestroyObject(o.session.handle, o.handle)
 }

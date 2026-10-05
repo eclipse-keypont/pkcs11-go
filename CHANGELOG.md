@@ -16,6 +16,79 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ## [Unreleased]
 
+## [1.2.0-rc1] - 2026-10-01
+
+Release candidate for 1.2.0: fixes the remaining findings from the consolidated
+security review of the `cryptoki` and `p11` packages. It adds a mechanism policy,
+secure-by-default key templates, and page-pinning helpers; the rest are internal
+memory-safety, input-validation, and build-hardening fixes.
+
+### Added
+
+- `cryptoki.MechanismPolicy` (interface) and `cryptoki.MechanismPolicyFunc`
+  (adapter), with `SetMechanismPolicy` to install a process-wide policy and
+  `RejectWeakMechanisms` as a ready-made policy that refuses MD2/MD5/SHA-1,
+  single-DES, RC2/RC4, and the SSLv3 MACs. `NewMechanism` and
+  `NewMechanismWithParams` consult the policy and panic on a rejected mechanism,
+  so a weak-algorithm selection fails at construction rather than at the token.
+  The default (nil) policy permits every mechanism.
+- `cryptoki.GCMParamsSize` — the size of the native `CK_GCM_PARAMS` (48 bytes on
+  LP64), so callers can size a parameter block without importing `"C"`.
+- `cryptoki.Mlock` and `cryptoki.Munlock` — best-effort page pinning of a byte
+  slice (mlock/munlock) so secret material is not written to swap. Documented as
+  defence-in-depth only: the Go GC may move or copy the backing array, so keep
+  secrets inside the HSM where possible.
+
+### Changed
+
+- `p11.Session.CreateObject`, `GenerateKey`, and `GenerateKeyPair` now apply
+  secure-by-default attributes for any the caller does not set:
+  `CKA_SENSITIVE=true`, `CKA_EXTRACTABLE=false`, and (for private/secret objects)
+  `CKA_PRIVATE=true`. An explicit value always wins, so this only fills gaps; a
+  caller that needs an extractable key must now set `CKA_EXTRACTABLE=true` itself.
+- `p11.Session.Close` is idempotent, and `Object`/`SecretKey`/`PublicKey`/
+  `PrivateKey` operations now fail fast with an error on a closed session instead
+  of issuing calls on a dead handle.
+- `cryptoki.NewPSSParams` rejects a negative salt length (panics, matching the
+  constructor convention used elsewhere in the package).
+- `cryptoki.GCMParams.Free` defers the native free while a GCM operation is in
+  flight, so a caller cannot free the parameter block out from under an active
+  `Encrypt`/`Decrypt`.
+- The common (2.x) entry points now dispatch through the module's >= 3.2 function
+  list when it advertises one, falling back to the base 2.x list otherwise.
+
+### Security
+
+- `cAttributes` computed its native allocation size from an unbounded attribute
+  count, so a count large enough to wrap the multiplication could make
+  `unsafe.Slice` write out of bounds (CWE-190). The count is now bounds-checked
+  against the output cap before allocating, and every `C.malloc` in the package
+  panics on a NULL return rather than dereferencing it.
+- `GetSlotList` and `GetMechanismList` now cap the module-reported count, and
+  `EncapsulateKey` caps the reported ciphertext length, so a module cannot drive
+  an unbounded native allocation (CWE-789).
+- The four combined streaming operations (`DigestEncryptUpdate`,
+  `DecryptDigestUpdate`, `SignEncryptUpdate`, `DecryptVerifyUpdate`) now scrub
+  their input buffers before freeing them, matching the rest of the package
+  (CWE-226).
+- `cmd/genconst` now validates every translated macro value against a
+  constant-expression allowlist and rejects comment introducers and function
+  calls, so a tampered `pkcs11t.h` fails the build instead of injecting code into
+  the generated source (CWE-94). Generated output is unchanged.
+
+### Fixed
+
+- `GCMParams` could be freed while an operation still referenced it; `Free` now
+  tracks in-flight use and defers the free until the operation completes.
+
+### Known limitations
+
+- `Mlock`/`Munlock` are best effort and cannot make a Go slice a reliable secret
+  store (the GC may move the backing array). Prefer non-extractable, sensitive
+  keys held in the HSM.
+- The Windows cgo build and the SoftHSM integration job remain disabled in CI
+  (`if: false` in `ci.yml`).
+
 ## [1.1.1] - 2026-09-17
 
 Security release: fixes six findings from the Synapse hunt of the `cryptoki`
@@ -162,7 +235,8 @@ specification and its C headers, with no code copied from existing bindings.
   and IPR policy for the three headers vendored verbatim under
   `internal/headers/`.
 
-[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.2.0-rc1...HEAD
+[1.2.0-rc1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.1...v1.2.0-rc1
 [1.1.1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0
 [1.1.0-rc1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0-rc1

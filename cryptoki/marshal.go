@@ -23,6 +23,11 @@ import (
 const (
 	maxOutBuf  = 64 << 20 // 64 MiB per output operation
 	maxRetries = 8        // maximum CKR_BUFFER_TOO_SMALL retries in outOp
+	// maxListLen bounds the number of entries a module may report for a
+	// slot/mechanism list before we allocate for it. A malicious or buggy
+	// module could otherwise report an enormous count and make us allocate (or
+	// index) far beyond anything a real token exposes.
+	maxListLen = 1 << 20 // 1,048,576 entries
 )
 
 // cBytes copies b into C heap memory and returns the pointer and its length.
@@ -46,6 +51,20 @@ func zfree(p unsafe.Pointer, n C.CK_ULONG) {
 		C.ck_memzero(p, n)
 	}
 	C.free(p)
+}
+
+// cMalloc allocates n bytes of C heap memory and panics if the allocation
+// fails. A NULL return from C.malloc would otherwise be dereferenced by the
+// caller; allocation failure here means the process is out of memory, which is
+// unrecoverable, so a panic is the honest response. Use it for the internal
+// marshalling helpers that have no error channel; functions that return an
+// error should check C.malloc themselves and report it.
+func cMalloc(n C.size_t) unsafe.Pointer {
+	p := C.malloc(n)
+	if p == nil {
+		panic("cryptoki: C.malloc failed (out of memory)")
+	}
+	return p
 }
 
 // ckULong encodes v as the platform's native CK_ULONG bytes. The width of
@@ -115,7 +134,7 @@ func cMechanism(m *Mechanism) (C.CK_MECHANISM_PTR, func()) {
 	if m == nil {
 		return nil, func() {}
 	}
-	mech := (*C.CK_MECHANISM)(C.malloc(C.size_t(unsafe.Sizeof(C.CK_MECHANISM{}))))
+	mech := (*C.CK_MECHANISM)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_MECHANISM{}))))
 	mech.mechanism = C.CK_MECHANISM_TYPE(m.Mechanism)
 
 	if m.params != nil {
@@ -148,7 +167,15 @@ func cAttributes(tmpl []*Attribute) (C.CK_ATTRIBUTE_PTR, C.CK_ULONG, func()) {
 	if n == 0 {
 		return nil, 0, func() {}
 	}
-	arr := (*C.CK_ATTRIBUTE)(C.malloc(C.size_t(n) * C.size_t(unsafe.Sizeof(C.CK_ATTRIBUTE{}))))
+	// Guard the size computation against overflow: n * sizeof(CK_ATTRIBUTE)
+	// must fit in a size_t. On a 32-bit target a large n would wrap the
+	// multiplication and make the unsafe.Slice below write past a too-small
+	// allocation. A template is caller-supplied, so an absurd count is a
+	// programming error rather than a runtime condition.
+	if !cAttributesFits(n, unsafe.Sizeof(C.CK_ATTRIBUTE{})) {
+		panic(fmt.Sprintf("cryptoki: cAttributes: template too large (%d attributes)", n))
+	}
+	arr := (*C.CK_ATTRIBUTE)(cMalloc(C.size_t(n) * C.size_t(unsafe.Sizeof(C.CK_ATTRIBUTE{}))))
 	list := unsafe.Slice(arr, n)
 	type buf struct {
 		p unsafe.Pointer
@@ -170,6 +197,17 @@ func cAttributes(tmpl []*Attribute) (C.CK_ATTRIBUTE_PTR, C.CK_ULONG, func()) {
 		}
 		C.free(unsafe.Pointer(arr))
 	}
+}
+
+// cAttributesFits reports whether n elements of elemSize bytes each fit within
+// maxOutBuf without overflowing the size computation. It is the pure predicate
+// behind cAttributes' overflow guard, split out so it can be tested without
+// allocating a template large enough to trip it.
+func cAttributesFits(n int, elemSize uintptr) bool {
+	if n < 0 || elemSize == 0 {
+		return false
+	}
+	return uint64(n) <= uint64(maxOutBuf)/uint64(elemSize)
 }
 
 // outOp runs a Cryptoki call that writes a variable-length byte result using
@@ -213,7 +251,7 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		// it for cleanup could write past the allocation. Always scrub and free
 		// using allocCap, and require a successful returned length to fit both
 		// allocCap and maxOutBuf before copying it out.
-		buf := C.malloc(allocCap)
+		buf := cMalloc(allocCap)
 		// Advertise the real output capacity (zero when sizing reported none)
 		// so the provider does not write past the allocation.
 		n = want
