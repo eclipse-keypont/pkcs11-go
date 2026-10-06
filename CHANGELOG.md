@@ -18,11 +18,12 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ## [1.2.0-rc2] - 2026-10-06
 
-Re-cut of [1.2.0-rc1] directly on `main`. The rc1 tag was created on the
-`integration/security-fixes` branch, which was squash-merged into `main` as
-`d4c143c`; the squash rewrote the branch commits, so the rc1 tag pointed at a
-commit that is not in `main`'s history. rc2 carries the identical content and is
-tagged on `main`. See [1.2.0-rc1] for the consolidated list of changes.
+Re-cut of [1.2.0-rc1] on the `release/1.2.0` branch, based on `main` at
+`d4c143c`. The rc1 tag was created on the `integration/security-fixes` branch,
+which was squash-merged into `main` as `d4c143c`; the squash rewrote the branch
+commits, so the rc1 tag pointed at a commit that is not in `main`'s history. rc2
+carries the identical content and is tagged on `release/1.2.0`. See [1.2.0-rc1]
+for the consolidated list of changes.
 
 ## [1.2.0-rc1] - 2026-10-01
 
