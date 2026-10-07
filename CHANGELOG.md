@@ -16,6 +16,15 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ## [Unreleased]
 
+## [1.2.0-rc2] - 2026-10-06
+
+Re-cut of [1.2.0-rc1] on the `release/1.2.0` branch, based on `main` at
+`d4c143c`. The rc1 tag was created on the `integration/security-fixes` branch,
+which was squash-merged into `main` as `d4c143c`; the squash rewrote the branch
+commits, so the rc1 tag pointed at a commit that is not in `main`'s history. rc2
+carries the identical content and is tagged on `release/1.2.0`. See [1.2.0-rc1]
+for the consolidated list of changes.
+
 ## [1.2.0-rc1] - 2026-10-01
 
 Release candidate for 1.2.0: fixes the remaining findings from the consolidated
@@ -235,7 +244,8 @@ specification and its C headers, with no code copied from existing bindings.
   and IPR policy for the three headers vendored verbatim under
   `internal/headers/`.
 
-[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.2.0-rc1...HEAD
+[Unreleased]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.2.0-rc2...HEAD
+[1.2.0-rc2]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.2.0-rc1...v1.2.0-rc2
 [1.2.0-rc1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.1...v1.2.0-rc1
 [1.1.1]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/eclipse-keypont/pkcs11-go/compare/v1.0.0...v1.1.0
