@@ -54,15 +54,24 @@ func TestWithSecureDefaultsRespectsExplicit(t *testing.T) {
 	}
 }
 
-// TestWithSecureDefaultsPublicNotPrivate checks CKA_PRIVATE is not forced on a
-// public object.
+// TestWithSecureDefaultsPublicNotPrivate checks that none of the private/secret
+// key attributes are forced on a public object. CKA_SENSITIVE and
+// CKA_EXTRACTABLE are not attributes of a public key, and a token that validates
+// the template against the object's attribute set (SoftHSMv2) rejects a public
+// template that names them with CKR_ATTRIBUTE_TYPE_INVALID.
 func TestWithSecureDefaultsPublicNotPrivate(t *testing.T) {
 	out := withSecureDefaults(nil, false)
 	if hasAttribute(out, cryptoki.CKA_PRIVATE) {
 		t.Error("CKA_PRIVATE added for public object")
 	}
-	if !hasAttribute(out, cryptoki.CKA_SENSITIVE) {
-		t.Error("CKA_SENSITIVE not added")
+	if hasAttribute(out, cryptoki.CKA_SENSITIVE) {
+		t.Error("CKA_SENSITIVE added for public object")
+	}
+	if hasAttribute(out, cryptoki.CKA_EXTRACTABLE) {
+		t.Error("CKA_EXTRACTABLE added for public object")
+	}
+	if len(out) != 0 {
+		t.Errorf("public template gained %d attributes, want 0", len(out))
 	}
 }
 

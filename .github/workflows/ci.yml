@@ -75,12 +75,11 @@ jobs:
         run: go vet ./...
 
   integration:
-    name: Integration (SoftHSM)
-    runs-on: ubuntu-latest
+    name: Integration (SoftHSMv2 PQC)
+    # ubuntu-26.04 ships OpenSSL 3.5, which SoftHSMv2 needs for ML-KEM/ML-DSA.
+    # ubuntu-24.04 ships OpenSSL 3.0.13 and cannot build the PQC module.
+    runs-on: ubuntu-26.04
     needs: build-test
-    # Temporarily disabled: SoftHSM integration tests need patching. Re-enable
-    # by removing this `if: false` once the SoftHSM setup is fixed.
-    if: false
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,13 +90,14 @@ jobs:
           go-version: '1.26'
           check-latest: true
 
-      - name: Install SoftHSM
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsofthsm2
+      # Builds SoftHSMv2 main with ML-KEM/ML-DSA against the runner's OpenSSL
+      # 3.5 and exports PKCS11_MODULE. The apt libsofthsm2 on ubuntu-24.04 is
+      # 2.6.1: it advertises wrong HMAC key sizes and has no ML-KEM/ML-DSA, so
+      # the v3.2 tests self-skipped instead of running.
+      - name: Set up SoftHSMv2 (PQC)
+        uses: ./.github/actions/setup-softhsmv2-pqc
 
       - name: Run integration tests
         env:
-          PKCS11_MODULE: /usr/lib/softhsm/libsofthsm2.so
           PKCS11_PIN: '1234'
         run: make integration PKCS11_MODULE="$PKCS11_MODULE"

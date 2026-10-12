@@ -13,6 +13,12 @@ import "github.com/eclipse-keypont/pkcs11-go/cryptoki"
 //   - CKA_PRIVATE = true      — the object is only visible to an authenticated
 //     user (private keys and secret keys)
 //
+// These are attributes of private and secret keys only, so they are added only
+// when private is true. A public key object does not carry CKA_SENSITIVE or
+// CKA_EXTRACTABLE, and a token that validates the template against the object's
+// attribute set (SoftHSMv2) rejects a public template that names them with
+// CKR_ATTRIBUTE_TYPE_INVALID.
+//
 // A caller that needs a different value sets the attribute itself; an explicit
 // value always wins, so this only fills gaps. The returned slice is a new slice
 // and never mutates the caller's.
@@ -20,14 +26,16 @@ func withSecureDefaults(tmpl []*cryptoki.Attribute, private bool) []*cryptoki.At
 	out := make([]*cryptoki.Attribute, 0, len(tmpl)+3)
 	out = append(out, tmpl...)
 
-	if !hasAttribute(tmpl, cryptoki.CKA_SENSITIVE) {
-		out = append(out, cryptoki.NewAttribute(cryptoki.CKA_SENSITIVE, true))
-	}
-	if !hasAttribute(tmpl, cryptoki.CKA_EXTRACTABLE) {
-		out = append(out, cryptoki.NewAttribute(cryptoki.CKA_EXTRACTABLE, false))
-	}
-	if private && !hasAttribute(tmpl, cryptoki.CKA_PRIVATE) {
-		out = append(out, cryptoki.NewAttribute(cryptoki.CKA_PRIVATE, true))
+	if private {
+		if !hasAttribute(tmpl, cryptoki.CKA_SENSITIVE) {
+			out = append(out, cryptoki.NewAttribute(cryptoki.CKA_SENSITIVE, true))
+		}
+		if !hasAttribute(tmpl, cryptoki.CKA_EXTRACTABLE) {
+			out = append(out, cryptoki.NewAttribute(cryptoki.CKA_EXTRACTABLE, false))
+		}
+		if !hasAttribute(tmpl, cryptoki.CKA_PRIVATE) {
+			out = append(out, cryptoki.NewAttribute(cryptoki.CKA_PRIVATE, true))
+		}
 	}
 	return out
 }
