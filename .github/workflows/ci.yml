@@ -101,3 +101,42 @@ jobs:
         env:
           PKCS11_PIN: '1234'
         run: make integration PKCS11_MODULE="$PKCS11_MODULE"
+
+  integration-softhsmv3:
+    name: Integration (SoftHSMv3 PQC)
+    runs-on: ubuntu-latest
+    needs: build-test
+    # SoftHSMv3's vendored pkcs11-provider needs OpenSSL 3.6, which no
+    # GitHub-hosted runner image ships (ubuntu-26.04 has 3.5.5). archlinux:latest
+    # ships OpenSSL 3.6.x with headers, so the module builds against a prebuilt
+    # OpenSSL with no source build. The job runs inside the container.
+    container:
+      image: archlinux:latest
+    steps:
+      # actions/checkout runs inside the container and needs git; the
+      # archlinux:latest base image does not ship it. Install git and the CA
+      # bundle before checkout. The setup-softhsmv3-pqc action installs the
+      # remaining build dependencies afterwards.
+      - name: Bootstrap container prerequisites
+        run: pacman -Syu --noconfirm --needed git ca-certificates
+
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+          check-latest: true
+
+      # Builds SoftHSMv3 (pqctoday-hsm) with ML-KEM/ML-DSA against the container's
+      # OpenSSL 3.6 and exports PKCS11_MODULE. Complementary to the SoftHSMv2
+      # job above: SoftHSMv3 implements PKCS#11 v3.2, so the v3.2/PQC tests run
+      # instead of self-skipping.
+      - name: Set up SoftHSMv3 (PQC)
+        uses: ./.github/actions/setup-softhsmv3-pqc
+
+      - name: Run integration tests
+        env:
+          PKCS11_PIN: '1234'
+        run: make integration PKCS11_MODULE="$PKCS11_MODULE"
