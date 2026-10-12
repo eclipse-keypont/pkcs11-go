@@ -213,9 +213,9 @@ func TestIntegrationGetSessionValidationFlags(t *testing.T) {
 		t.Skip("module does not expose the PKCS #11 v3.2 interface")
 	}
 	sh := requireSession(t)
-	// flagType 0 selects the session's current validation state. A token that
-	// does not implement this call returns CKR_FUNCTION_NOT_SUPPORTED.
-	_, err := testCtx.GetSessionValidationFlags(sh, 0)
+	// CKS_LAST_VALIDATION_OK is the only defined validation-flags type; a token
+	// that does not implement this call returns CKR_FUNCTION_NOT_SUPPORTED.
+	_, err := testCtx.GetSessionValidationFlags(sh, CKS_LAST_VALIDATION_OK)
 	if err != nil && !errors.Is(err, Error(CKR_FUNCTION_NOT_SUPPORTED)) {
 		t.Fatalf("GetSessionValidationFlags: %v", err)
 	}
