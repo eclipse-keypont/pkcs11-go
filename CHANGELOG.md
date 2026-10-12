@@ -16,6 +16,13 @@ independent of the PKCS #11 specification revision the binding targets, which is
 
 ## [Unreleased]
 
+### Changed
+
+- Build and test toolchain bumped from `go1.27.1` to `go1.27.2` (`toolchain` directive in
+  `go.mod` and `.go-version`). go1.27.2 is a patch release that fixes the `net/http` and
+  `net/http/internal/http2` standard-library vulnerabilities flagged by `govulncheck` on
+  go1.27.1. CI reads the toolchain through `go-version-file: go.mod`.
+
 ## [1.2.0-rc2] - 2026-10-06
 
 Re-cut of [1.2.0-rc1] on the `release/1.2.0` branch, based on `main` at
