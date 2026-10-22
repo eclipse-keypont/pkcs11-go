@@ -14,6 +14,16 @@ Versions here describe the Go API of the `cryptoki` and `p11` packages. They are
 independent of the PKCS #11 specification revision the binding targets, which is
 [OASIS PKCS #11 v3.2](https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.2/pkcs11-spec-v3.2.html).
 
+## [Unreleased]
+
+### Changed
+
+- Build and test toolchain bumped from `go1.27.2` to `go1.27.3` (`toolchain` directive in
+  `go.mod` and `.go-version`). go1.27.3 is a patch release that fixes the `crypto/x509`
+  standard-library vulnerability `GO-2026-6809` ("distrust compromised intermediate
+  certificates") flagged by `govulncheck` on go1.27.2. CI reads the toolchain through
+  `go-version-file: go.mod`.
+
 ## [1.2.0-rc4] - 2026-10-20
 
 ### Security
