@@ -12,8 +12,16 @@ import (
 // NewMechanism and NewMechanismWithParams before a Mechanism is built, so a
 // policy violation is reported at construction time rather than by the token,
 // and again whenever a Mechanism is passed to an operation, so a Mechanism
-// built as a struct literal cannot bypass it. The digests a structured
-// parameter names (OAEP/PSS hash and MGF, ECDH1 KDF) are checked as well.
+// built as a struct literal cannot bypass it.
+//
+// At operation time the policy also judges the digests a parameter names: the
+// OAEP and PSS hash and MGF, the KDF of ECDH1, ECMQV and the ECDH AES key
+// wraps, the PRF of HKDF and SP 800-108, and the hash of HashML-DSA and
+// HashSLH-DSA. A structured parameter reports them itself; a raw Parameter is
+// decoded with the platform's C struct layouts. While a policy is installed, a
+// raw Parameter that cannot be decoded is refused: one too short for its
+// struct, and one for CKM_RSA_AES_KEY_WRAP, whose OAEP digests sit behind a
+// pointer.
 //
 // A nil policy (the default) permits every mechanism: the binding does not
 // second-guess a caller who deliberately selects a legacy algorithm. Install a
@@ -57,19 +65,33 @@ func checkMechanism(mechanism uint) error {
 }
 
 // checkMechanismUse consults the installed policy for m and for every digest
-// mechanism its structured parameter names (the OAEP/PSS hash and MGF, the
-// ECDH1 KDF). It runs when a Mechanism is handed to the module, so a Mechanism
-// built as a struct literal, or with a weak hash inside an otherwise strong
-// parameter block, is still subject to the policy.
+// mechanism its parameter names, whether structured (hashMechanisms) or raw
+// (rawParamDigests). It runs when a Mechanism is handed to the module, so a
+// Mechanism built as a struct literal, or with a weak hash inside an otherwise
+// strong parameter block, is still subject to the policy.
 func checkMechanismUse(m *Mechanism) error {
-	if err := checkMechanism(m.Mechanism); err != nil {
+	policyMu.RLock()
+	p := policy
+	policyMu.RUnlock()
+	if p == nil {
+		return nil
+	}
+	if err := p.Allow(m.Mechanism); err != nil {
 		return err
 	}
-	if hp, ok := m.params.(interface{ hashMechanisms() []uint }); ok {
-		for _, h := range hp.hashMechanisms() {
-			if err := checkMechanism(h); err != nil {
-				return err
-			}
+	var digests []uint
+	switch params := m.params.(type) {
+	case nil:
+		var err error
+		if digests, err = rawParamDigests(m.Mechanism, m.Parameter); err != nil {
+			return err
+		}
+	case interface{ hashMechanisms() []uint }:
+		digests = params.hashMechanisms()
+	}
+	for _, d := range digests {
+		if err := p.Allow(d); err != nil {
+			return err
 		}
 	}
 	return nil
