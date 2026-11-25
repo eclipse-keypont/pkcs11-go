@@ -37,6 +37,11 @@ type MechanismParams interface {
 // C_Encrypt (UseGCMIVFromHSM / CloudHSM behaviour). Call IV after Encrypt to
 // retrieve the written-back value; call Free once the operation is complete.
 //
+// The caller owns that lifetime. Free guards only the C_EncryptInit or
+// C_DecryptInit call itself (see Free); it cannot tell whether the module still
+// holds the block for the C_Encrypt or C_Decrypt that follows. Calling Free
+// between Init and the end of the operation hands the module freed memory.
+//
 // Vendor compatibility (P18): the OASIS v3.2 CK_GCM_PARAMS has six fields
 // (pIv, ulIvLen, ulIvBits, pAAD, ulAADLen, ulTagBits) and is 48 bytes on LP64
 // (three pointers plus three CK_ULONGs, all 8 bytes). Some older vendor headers
@@ -163,7 +168,9 @@ func (p *GCMParams) IV() []byte {
 //
 // If a build() is still outstanding (an Init call in flight), Free defers the
 // release until that build's cleanup runs, so it cannot free the AAD/IV buffers
-// while the module is still reading them (M-P10).
+// while the Init call is still reading them (M-P10). That is the only window
+// it covers: once Init has returned, Free releases the memory at once, even if
+// the operation has not finished.
 func (p *GCMParams) Free() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
