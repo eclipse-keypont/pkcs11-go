@@ -184,6 +184,15 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 
 	unavailable := C.CK_ULONG(C.CK_UNAVAILABLE_INFORMATION)
 
+	// The lengths come from the module. Bound each one before allocating, as
+	// outOp bounds an output, so a bogus value cannot drive the allocation.
+	for i := range list {
+		if l := list[i].ulValueLen; l != unavailable && uint64(l) > maxOutBuf {
+			return nil, fmt.Errorf("cryptoki: GetAttributeValue: module reported %d bytes for %s, exceeds limit %d",
+				uint64(l), AttributeName(uint(list[i]._type)), uint64(maxOutBuf))
+		}
+	}
+
 	// allocs records each value buffer's pointer and allocation size separately
 	// from the CK_ATTRIBUTE structures. The second C_GetAttributeValue call can
 	// overwrite ulValueLen — for example with CK_UNAVAILABLE_INFORMATION when an
@@ -312,6 +321,9 @@ func (c *Ctx) FindObjects(sh SessionHandle, maxObjects int) ([]ObjectHandle, err
 	rv := C.ck_find_objects(m, C.CK_SESSION_HANDLE(sh), &buf[0], C.CK_ULONG(maxObjects), &count)
 	if err := toError(uint(rv)); err != nil {
 		return nil, err
+	}
+	if uint64(count) > uint64(maxObjects) {
+		return nil, fmt.Errorf("cryptoki: FindObjects: module reported %d objects for a buffer of %d", uint64(count), maxObjects)
 	}
 	out := make([]ObjectHandle, count)
 	for i := range out {
