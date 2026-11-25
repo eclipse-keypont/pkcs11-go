@@ -129,3 +129,23 @@ func TestIntegrationOversizeOutputEndsOperation(t *testing.T) {
 		t.Fatalf("Encrypt after the oversize Encrypt: %v", err)
 	}
 }
+
+// TestOutOpRejectsLengthOverCapacity checks that a data pass reporting more
+// bytes than the capacity it was given is an error. When the sizing pass
+// reports no output, outOp still allocates one byte, so a module reporting one
+// byte would otherwise hand back a byte it never wrote.
+func TestOutOpRejectsLengthOverCapacity(t *testing.T) {
+	ctx, err := New(compileTestModule(t, filepath.Join("testdata", "opmock", "mock.c"), "MOCK_ZERO_THEN_ONE"))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer ctx.Destroy()
+
+	const sh, key = SessionHandle(1), ObjectHandle(1)
+	if err := ctx.EncryptInit(sh, NewMechanism(CKM_AES_ECB, nil), key); err != nil {
+		t.Fatalf("EncryptInit: %v", err)
+	}
+	if out, err := ctx.Encrypt(sh, []byte("data")); err == nil {
+		t.Fatalf("Encrypt = %x, want an error for a length over the 0-byte capacity", out)
+	}
+}

@@ -320,11 +320,13 @@ func outOp(end opEnder, call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV
 			zfree(buf, allocCap)
 			return nil, err
 		}
-		// A successful call must not report more than we allocated or than the
-		// limit allows; otherwise C.GoBytes would read past the buffer.
-		if n > allocCap || uint64(n) > maxOutBuf {
+		// A successful call must not report more than the capacity we
+		// advertised; otherwise C.GoBytes would read past the buffer, or, when
+		// the sizing pass reported zero, return the uninitialised byte behind
+		// the one-byte allocation.
+		if n > want {
 			zfree(buf, allocCap)
-			return nil, fmt.Errorf("cryptoki: output size %d exceeds allocation %d", uint64(n), uint64(allocCap))
+			return nil, fmt.Errorf("cryptoki: output size %d exceeds the %d-byte buffer", uint64(n), uint64(want))
 		}
 		if n == 0 {
 			zfree(buf, allocCap)

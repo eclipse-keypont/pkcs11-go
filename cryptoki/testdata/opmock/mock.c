@@ -9,7 +9,9 @@
  * one is active. The sizing pass of C_Encrypt reports an output one byte over
  * the binding's 64 MiB limit; with MOCK_TOO_SMALL it reports 16 bytes instead,
  * and every data pass answers CKR_BUFFER_TOO_SMALL. Either way the encryption
- * stays active, as the specification says it does.
+ * stays active, as the specification says it does. With MOCK_ZERO_THEN_ONE the
+ * sizing pass reports no output and the data pass one byte, which it does not
+ * write.
  *
  * How the encryption can be ended depends on how the mock is compiled:
  *
@@ -62,6 +64,14 @@ static CK_RV Encrypt(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulD
 #if defined(MOCK_TOO_SMALL)
 	*pulEncryptedDataLen = 16;
 	return pEncryptedData == NULL_PTR ? CKR_OK : CKR_BUFFER_TOO_SMALL;
+#elif defined(MOCK_ZERO_THEN_ONE)
+	if (pEncryptedData == NULL_PTR) {
+		*pulEncryptedDataLen = 0;
+		return CKR_OK;
+	}
+	*pulEncryptedDataLen = 1;
+	active = 0;
+	return CKR_OK;
 #else
 	(void)pEncryptedData;
 	*pulEncryptedDataLen = (CK_ULONG)(64 << 20) + 1;
