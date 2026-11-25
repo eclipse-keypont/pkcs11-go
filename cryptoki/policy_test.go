@@ -202,12 +202,31 @@ func TestPolicyChecksParameterHashes(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("NewMechanismWithParams(OAEP, SHA-1) did not panic under RejectWeakMechanisms")
-		}
+}
+
+// TestNewMechanismWithParamsLeavesDigestsToUse checks that a digest the policy
+// rejects, inside an otherwise allowed mechanism's parameter, does not make
+// NewMechanismWithParams panic, since the digest may come from data, and that
+// the rejection is an error when the Mechanism is used.
+func TestNewMechanismWithParamsLeavesDigestsToUse(t *testing.T) {
+	SetMechanismPolicy(MechanismPolicyFunc(RejectWeakMechanisms))
+	t.Cleanup(func() { SetMechanismPolicy(nil) })
+
+	var m *Mechanism
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("NewMechanismWithParams(OAEP, SHA-1) panicked: %v", r)
+			}
+		}()
+		m = NewMechanismWithParams(CKM_RSA_PKCS_OAEP, NewOAEPParams(CKM_SHA_1, CKG_MGF1_SHA1, CKZ_DATA_SPECIFIED, nil))
 	}()
-	_ = NewMechanismWithParams(CKM_RSA_PKCS_OAEP, NewOAEPParams(CKM_SHA_1, CKG_MGF1_SHA1, CKZ_DATA_SPECIFIED, nil))
+	if err := checkMechanismUse(m); err == nil {
+		t.Fatal("using OAEP with SHA-1 under RejectWeakMechanisms = nil, want the policy error")
+	}
+	if _, _, err := cMechanism(m); err == nil {
+		t.Fatal("cMechanism(OAEP, SHA-1) under RejectWeakMechanisms = nil, want the policy error")
+	}
 }
 
 // rawParam builds the raw parameter of mechanism, the bytes of its CK_*_PARAMS

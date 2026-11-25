@@ -14,7 +14,8 @@ import (
 // and again whenever a Mechanism is passed to an operation, so a Mechanism
 // built as a struct literal cannot bypass it.
 //
-// At operation time the policy also judges the digests a parameter names: the
+// Only at operation time, where a rejection is an error rather than a panic,
+// does the policy also judge the digests a parameter names: the
 // OAEP and PSS hash and MGF, the KDF of ECDH1, ECMQV and the ECDH AES key
 // wraps, the PRF of HKDF and SP 800-108, and the hash of HashML-DSA and
 // HashSLH-DSA. A structured parameter reports them itself; a raw Parameter is
