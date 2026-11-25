@@ -14,6 +14,92 @@ Versions here describe the Go API of the `cryptoki` and `p11` packages. They are
 independent of the PKCS #11 specification revision the binding targets, which is
 [OASIS PKCS #11 v3.2](https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.2/pkcs11-spec-v3.2.html).
 
+## [Unreleased]
+
+### Security
+
+- An operation the binding gives up on part-way is now ended on the session. When a module
+  reported an output over the 64 MiB limit, or kept answering `CKR_BUFFER_TOO_SMALL`, the
+  call failed but the operation stayed active, so every later `C_*Init` of the same kind on
+  that session failed with `CKR_OPERATION_ACTIVE`. The binding now ends it with
+  `C_SessionCancel`, or with a `C_*Init` call that has a NULL mechanism, the v3.0
+  convention. A module that supports neither, including any module without a v3.2
+  interface, keeps the operation, and the error then wraps the new `ErrOperationActive` so
+  the caller can close the session.
+- Every method that passes a template to the module now refuses an attribute whose value is
+  itself a template (`CKA_WRAP_TEMPLATE`, `CKA_UNWRAP_TEMPLATE`, `CKA_DERIVE_TEMPLATE`,
+  `CKA_ENCAPSULATE_TEMPLATE`, `CKA_DECAPSULATE_TEMPLATE`, and any other array attribute
+  except `CKA_ALLOWED_MECHANISMS`). The binding passes values as flat bytes, and a module
+  reads such a value as `CK_ATTRIBUTE` structures that hold pointers. `GetAttributeValue`
+  already refused them.
+- `p11`'s `Session.FindSecretKey` and `Session.FindPrivateKey` now find only private
+  objects (`CKA_PRIVATE = true`). Only a logged-in user can create a private object, while
+  many tokens let any R/W session create a public one, so a public key carrying the
+  requested label no longer stands in for the real one. `FindPublicKey` cannot apply this
+  check, since public keys are public objects; its documentation now says to check a found
+  public key against something trusted.
+- The mechanism policy now judges the digests named inside a raw `Parameter` as well as a
+  structured one: the OAEP and PSS hash and MGF, the KDF of ECDH1, ECMQV and the ECDH AES
+  key wraps, the PRF of HKDF and SP 800-108, and the hash of HashML-DSA and HashSLH-DSA.
+  The parameter is decoded with the platform's C struct layouts. While a policy is
+  installed, a raw parameter that cannot be decoded is refused: one shorter than its
+  struct, and one for `CKM_RSA_AES_KEY_WRAP`, whose OAEP digests sit behind a pointer.
+- `RejectWeakMechanisms` now also refuses MD2-RSA and the MD2 key derivation, RIPEMD-128,
+  `CKM_SHA_1_KEY_GEN`, RC2-CBC-PAD, the single-DES feedback modes and `ENCRYPT_DATA`
+  derivations, CDMF, CAST and CAST3, SKIPJACK and KEA, the LYNKS and SET key wraps, the
+  SSLv3 and TLS 1.0/1.1 key derivations and PRF, and the remaining PBE and PBA schemes on
+  MD5 and SHA-1. Three-key triple DES, CAST5, IDEA, Blowfish and vendor-defined
+  mechanisms stay allowed; install an allow-list for a stricter policy.
+- `GCMParams.IV` and `GCMParams.Free` no longer take a pointer or a length from the
+  `CK_GCM_PARAMS` struct, which the module may write to. A module that enlarged `ulIvLen`
+  or `ulAADLen` made them read, and scrub, past the IV and AAD allocations. They now use
+  the sizes `GCMParams` allocated; `IV` still honours a shorter `ulIvLen`.
+- Counts and lengths a module reports are now checked before the binding indexes or
+  allocates with them: the second-pass counts of `GetSlotList` and `GetMechanismList`
+  against the list they were given, the count of `FindObjects` against its buffer, and the
+  value lengths of `GetAttributeValue` against the 64 MiB limit. A module that reported
+  more made the binding panic.
+- A variable-length output whose data pass reports more bytes than the capacity it was
+  given is now an error. When the sizing pass reported no output, the one-byte buffer
+  allocated for the data pass could be returned without the module having written it.
+- `EncapsulateKey` now refuses an empty ciphertext and a missing key handle. A sizing pass
+  that reported no ciphertext left the data pass with a NULL buffer, which only asks for
+  the length again, and the call returned success with no ciphertext.
+- A function-list entry the module leaves NULL now answers `CKR_FUNCTION_NOT_SUPPORTED`
+  instead of being called, which crashed the process.
+- `p11`'s `Session.FindObjects` now stops with an error after 1,048,576 objects. A search
+  ends only when the module returns an empty batch, so a module that never did kept the
+  call looping and allocating.
+
+### Added
+
+- `Ctx.SessionCancel` (`C_SessionCancel`).
+- `ErrOutputTooLarge`, wrapped by the error for an output over the 64 MiB limit, and
+  `ErrOperationActive`, wrapped when an operation the binding gave up on is still active
+  on the session.
+
+### Changed
+
+- `NewMechanismWithParams` no longer panics when the installed mechanism policy rejects a
+  digest its parameter names (the OAEP or PSS hash and MGF, the ECDH1 KDF). The operation the
+  `Mechanism` is used for returns the policy's error instead, as it already did. Those digests
+  often come from data, such as the `alg` header of a JWE, and the panic let that data crash
+  the process. A mechanism the policy rejects outright still panics, as with `NewMechanism`.
+- A `nil` entry in a template is now an error rather than a panic.
+- The `GCMParams` documentation now says that the caller owns the parameter block's
+  lifetime until `Encrypt`/`Decrypt` has finished: `Free` defers only while an Init call
+  is in flight. Two entries in the 1.2.0-rc1 and 1.2.0 notes below that claimed it covered
+  the whole operation are corrected here.
+- `p11`: `FindSecretKey` and `FindPrivateKey` no longer find a key with
+  `CKA_PRIVATE = false`. Keys this package creates are private by default. For a key that
+  is not, call `FindObject` with an explicit template.
+
+### Fixed
+
+- `GetAttributeValue` can read `CKA_ALLOWED_MECHANISMS` again. It carries
+  `CKF_ARRAY_ATTRIBUTE` but is a flat array of mechanism types, not a template, and was
+  refused along with the templates.
+
 ## [1.2.0] - 2026-10-26
 
 The final release of the 1.2.0 line. This section lists everything since [1.1.1],
@@ -45,24 +131,6 @@ including the changes first published in [1.2.0-rc1] through [1.2.0-rc4].
 - `SECURITY.md`: how to report a vulnerability privately (GitHub private vulnerability
   reporting or the Eclipse Foundation security team), which versions receive fixes, and what
   is in scope for a binding that loads native PKCS #11 modules.
-
-### Security
-
-- An operation the binding gives up on part-way is now ended on the session. When a module
-  reported an output over the 64 MiB limit, or kept answering `CKR_BUFFER_TOO_SMALL`, the
-  call failed but the operation stayed active, so every later `C_*Init` of the same kind on
-  that session failed with `CKR_OPERATION_ACTIVE`. The binding now ends it with
-  `C_SessionCancel`, or with a `C_*Init` call that has a NULL mechanism, the v3.0
-  convention. A module that supports neither, including any module without a v3.2
-  interface, keeps the operation, and the error then wraps the new `ErrOperationActive` so
-  the caller can close the session.
-
-### Added
-
-- `Ctx.SessionCancel` (`C_SessionCancel`).
-- `ErrOutputTooLarge`, wrapped by the error for an output over the 64 MiB limit, and
-  `ErrOperationActive`, wrapped when an operation the binding gave up on is still active
-  on the session.
 
 ### Changed
 
