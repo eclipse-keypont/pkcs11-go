@@ -165,10 +165,15 @@ func (s *Session) GenerateKeyPair(mechanism *cryptoki.Mechanism, publicTemplate,
 	}, nil
 }
 
+// maxFoundObjects bounds the objects one FindObjects call collects. A search
+// ends when the module returns an empty batch; the bound stops one whose
+// module never does.
+const maxFoundObjects = 1 << 20
+
 // FindObjects returns every object matching the template. An empty template
 // matches all objects in the session's view. The whole find sequence
 // (Init→Find…→Final) is held under the session mutex so it cannot interleave
-// with another operation.
+// with another operation. More than maxFoundObjects matches is an error.
 func (s *Session) FindObjects(template []*cryptoki.Attribute) ([]Object, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -185,6 +190,10 @@ func (s *Session) FindObjects(template []*cryptoki.Attribute) ([]Object, error) 
 		}
 		if len(batch) == 0 {
 			break
+		}
+		if len(found)+len(batch) > maxFoundObjects {
+			_ = s.ctx.FindObjectsFinal(s.handle)
+			return nil, fmt.Errorf("p11: FindObjects: more than %d objects matched", maxFoundObjects)
 		}
 		for _, h := range batch {
 			found = append(found, Object{session: s, handle: h})
