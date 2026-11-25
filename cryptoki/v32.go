@@ -192,6 +192,20 @@ func (c *Ctx) GetSessionValidationFlags(sh SessionHandle, flagType uint) (uint, 
 	return uint(flags), nil
 }
 
+// SessionCancel ends the active operations on a session that flags names
+// (C_SessionCancel): CKF_ENCRYPT, CKF_DECRYPT, CKF_DIGEST, CKF_SIGN, CKF_VERIFY
+// and the other operation flags, OR-ed together. It is a v3.0 function, so it
+// needs a module with a v3.2 interface, and a module may still answer
+// CKR_FUNCTION_NOT_SUPPORTED.
+func (c *Ctx) SessionCancel(sh SessionHandle, flags uint) error {
+	m, release, err := c.grab()
+	if err != nil {
+		return err
+	}
+	defer release()
+	return toError(uint(C.ck_session_cancel(m, C.CK_SESSION_HANDLE(sh), C.CK_FLAGS(flags))))
+}
+
 // WrapKeyAuthenticated wraps a key with an AEAD wrapping mechanism, binding the
 // given associated data, and returns the wrapped bytes (C_WrapKeyAuthenticated).
 func (c *Ctx) WrapKeyAuthenticated(sh SessionHandle, m *Mechanism, wrappingKey, key ObjectHandle, aad []byte) ([]byte, error) {
@@ -207,7 +221,7 @@ func (c *Ctx) WrapKeyAuthenticated(sh SessionHandle, m *Mechanism, wrappingKey, 
 	defer freeMech()
 	ad, adLen := cInput(aad)
 	defer free(ad)
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(nil, func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_wrap_key_authenticated(mod, C.CK_SESSION_HANDLE(sh), mech,
 			C.CK_OBJECT_HANDLE(wrappingKey), C.CK_OBJECT_HANDLE(key),
 			(C.CK_BYTE_PTR)(ad), adLen, out, outLen)

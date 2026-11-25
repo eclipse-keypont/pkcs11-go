@@ -46,6 +46,24 @@ including the changes first published in [1.2.0-rc1] through [1.2.0-rc4].
   reporting or the Eclipse Foundation security team), which versions receive fixes, and what
   is in scope for a binding that loads native PKCS #11 modules.
 
+### Security
+
+- An operation the binding gives up on part-way is now ended on the session. When a module
+  reported an output over the 64 MiB limit, or kept answering `CKR_BUFFER_TOO_SMALL`, the
+  call failed but the operation stayed active, so every later `C_*Init` of the same kind on
+  that session failed with `CKR_OPERATION_ACTIVE`. The binding now ends it with
+  `C_SessionCancel`, or with a `C_*Init` call that has a NULL mechanism, the v3.0
+  convention. A module that supports neither, including any module without a v3.2
+  interface, keeps the operation, and the error then wraps the new `ErrOperationActive` so
+  the caller can close the session.
+
+### Added
+
+- `Ctx.SessionCancel` (`C_SessionCancel`).
+- `ErrOutputTooLarge`, wrapped by the error for an output over the 64 MiB limit, and
+  `ErrOperationActive`, wrapped when an operation the binding gave up on is still active
+  on the session.
+
 ### Changed
 
 - `p11.Session.CreateObject`, `GenerateKey`, and `GenerateKeyPair` now apply

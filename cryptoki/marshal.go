@@ -246,14 +246,20 @@ func cAttributesFits(n int, elemSize uintptr) bool {
 // and retry rather than failing the operation. The result buffer is scrubbed
 // before being freed, since for Decrypt/DecryptFinal it holds plaintext.
 // Retries are bounded by maxRetries and the buffer size by maxOutBuf.
-func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, error) {
+//
+// A successful sizing pass and a CKR_BUFFER_TOO_SMALL leave the operation
+// active on the token. When outOp gives up after either — the size is over
+// maxOutBuf, or the retries ran out — it ends the operation with end, so the
+// session is not left holding it (see abandon). end is nil for a call that
+// runs no operation.
+func outOp(end opEnder, call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, error) {
 	var n C.CK_ULONG
 	if err := toError(uint(call(nil, &n))); err != nil {
 		return nil, err
 	}
 	for retries := 0; retries < maxRetries; retries++ {
 		if uint64(n) > maxOutBuf {
-			return nil, fmt.Errorf("cryptoki: output size %d exceeds limit %d", uint64(n), uint64(maxOutBuf))
+			return nil, abandon(end, outputTooLarge(n))
 		}
 		// The NULL-output call above is a sizing pass, not necessarily
 		// execution or finalization of the cryptographic operation. When it
@@ -286,7 +292,7 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 			// using its saved capacity before freeing it, then reallocate.
 			zfree(buf, allocCap)
 			if uint64(n) > maxOutBuf {
-				return nil, fmt.Errorf("cryptoki: output size %d exceeds limit %d", uint64(n), uint64(maxOutBuf))
+				return nil, abandon(end, outputTooLarge(n))
 			}
 			continue
 		}
@@ -308,5 +314,62 @@ func outOp(call func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV) ([]byte, er
 		zfree(buf, allocCap)
 		return out, nil
 	}
-	return nil, fmt.Errorf("cryptoki: outOp: CKR_BUFFER_TOO_SMALL after %d retries", maxRetries)
+	return nil, abandon(end, fmt.Errorf("cryptoki: outOp: CKR_BUFFER_TOO_SMALL after %d retries", maxRetries))
+}
+
+// outputTooLarge is the error for a module-reported output size over maxOutBuf.
+func outputTooLarge(n C.CK_ULONG) error {
+	return fmt.Errorf("%w: %d bytes, limit %d", ErrOutputTooLarge, uint64(n), uint64(maxOutBuf))
+}
+
+// opEnder ends the token operation an outOp call leaves active when it gives
+// up part-way. It is nil for a call that runs no operation (C_WrapKey,
+// C_GetOperationState).
+type opEnder func() error
+
+// endOp returns the opEnder for the operations flags names on session sh. It
+// asks C_SessionCancel first and, if that fails, calls each operation's
+// C_*Init with a NULL mechanism, which v3.0 defines as ending the operation.
+// Both are v3 behaviour, so a module without a v3.2 interface is not asked at
+// all: a v2 module is not required to expect a NULL mechanism.
+func endOp(m *C.ckModule, sh SessionHandle, flags uint) opEnder {
+	h := C.CK_SESSION_HANDLE(sh)
+	return func() error {
+		if C.ck_has_v32(m) == 0 {
+			return Error(CKR_FUNCTION_NOT_SUPPORTED)
+		}
+		err := toError(uint(C.ck_session_cancel(m, h, C.CK_FLAGS(flags))))
+		if err == nil {
+			return nil
+		}
+		inits := [...]struct {
+			flag uint
+			init func() C.CK_RV
+		}{
+			{CKF_ENCRYPT, func() C.CK_RV { return C.ck_encrypt_init(m, h, nil, 0) }},
+			{CKF_DECRYPT, func() C.CK_RV { return C.ck_decrypt_init(m, h, nil, 0) }},
+			{CKF_DIGEST, func() C.CK_RV { return C.ck_digest_init(m, h, nil) }},
+			{CKF_SIGN, func() C.CK_RV { return C.ck_sign_init(m, h, nil, 0) }},
+			{CKF_VERIFY, func() C.CK_RV { return C.ck_verify_init(m, h, nil, 0) }},
+		}
+		for _, op := range inits {
+			if flags&op.flag != 0 && toError(uint(op.init())) != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+// abandon ends the operation outOp is giving up on and returns err. When the
+// operation could not be ended, the error also wraps ErrOperationActive, so
+// the caller knows the session still carries it.
+func abandon(end opEnder, err error) error {
+	if end == nil {
+		return err
+	}
+	if endErr := end(); endErr != nil {
+		return fmt.Errorf("%w; %w (%w)", err, ErrOperationActive, endErr)
+	}
+	return err
 }

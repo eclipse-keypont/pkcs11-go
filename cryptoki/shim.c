@@ -745,6 +745,12 @@ CK_RV ck_get_session_validation_flags(ckModule *m, CK_SESSION_HANDLE sh,
 	return m->fns32->C_GetSessionValidationFlags(sh, type, flags);
 }
 
+CK_RV ck_session_cancel(ckModule *m, CK_SESSION_HANDLE sh, CK_FLAGS flags) {
+	REQUIRE_M(m);
+	REQUIRE_V32(m);
+	return m->fns32->C_SessionCancel(sh, flags);
+}
+
 CK_RV ck_wrap_key_authenticated(ckModule *m, CK_SESSION_HANDLE sh,
                                 CK_MECHANISM_PTR mech,
                                 CK_OBJECT_HANDLE wrappingKey,

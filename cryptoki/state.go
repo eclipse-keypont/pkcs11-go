@@ -18,7 +18,7 @@ func (c *Ctx) GetOperationState(sh SessionHandle) ([]byte, error) {
 		return nil, err
 	}
 	defer release()
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(nil, func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_get_operation_state(m, C.CK_SESSION_HANDLE(sh), out, outLen)
 	})
 }

@@ -260,6 +260,11 @@ CK_RV ck_get_session_validation_flags(ckModule *m, CK_SESSION_HANDLE sh,
                                       CK_SESSION_VALIDATION_FLAGS_TYPE type,
                                       CK_FLAGS_PTR flags);
 
+/* ck_session_cancel calls C_SessionCancel, which ends the active operations
+ * that flags names (CKF_ENCRYPT, CKF_DECRYPT, CKF_DIGEST, CKF_SIGN, ...). It
+ * is a v3.0 function, reached here through the 3.2 list. */
+CK_RV ck_session_cancel(ckModule *m, CK_SESSION_HANDLE sh, CK_FLAGS flags);
+
 CK_RV ck_wrap_key_authenticated(ckModule *m, CK_SESSION_HANDLE sh,
                                 CK_MECHANISM_PTR mech,
                                 CK_OBJECT_HANDLE wrappingKey,

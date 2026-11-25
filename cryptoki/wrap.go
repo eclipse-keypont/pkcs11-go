@@ -21,7 +21,7 @@ func (c *Ctx) WrapKey(sh SessionHandle, m *Mechanism, wrappingKey, key ObjectHan
 		return nil, err
 	}
 	defer freeMech()
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(nil, func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_wrap_key(mod, C.CK_SESSION_HANDLE(sh), mech,
 			C.CK_OBJECT_HANDLE(wrappingKey), C.CK_OBJECT_HANDLE(key), out, outLen)
 	})

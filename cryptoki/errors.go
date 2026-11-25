@@ -3,7 +3,10 @@
 
 package cryptoki
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Error is a PKCS #11 return value (CK_RV) other than CKR_OK. Every Cryptoki
 // call that fails reports its CK_RV as one of these. The symbolic CKR_ names
@@ -27,3 +30,20 @@ func toError(rv uint) error {
 	}
 	return Error(rv)
 }
+
+// ErrOutputTooLarge is wrapped by the error a method returns when the module
+// reports a result larger than the binding accepts (64 MiB). The result is not
+// read. The binding then ends the operation on the session; when it cannot,
+// the error also wraps ErrOperationActive.
+var ErrOutputTooLarge = errors.New("cryptoki: output exceeds the size limit")
+
+// ErrOperationActive is wrapped by the error a method returns when it stopped
+// a token operation part-way and could not end it: the session still carries
+// the operation, so the next C_*Init of the same kind on that session fails
+// with CKR_OPERATION_ACTIVE. Close the session, or end the operation yourself.
+//
+// The binding ends an operation with C_SessionCancel, or failing that with the
+// v3.0 convention of calling C_*Init with a NULL mechanism. Both are v3
+// behaviour, so on a module without a v3.2 interface, or one that supports
+// neither, the operation stays active.
+var ErrOperationActive = errors.New("cryptoki: operation still active on the session")
