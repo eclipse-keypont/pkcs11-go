@@ -12,7 +12,6 @@ import "C"
 import (
 	"fmt"
 	"math"
-	"unsafe"
 )
 
 // This file implements the PKCS #11 v3.2 entry points. They are dispatched
@@ -51,43 +50,43 @@ func (c *Ctx) EncapsulateKey(sh SessionHandle, m *Mechanism, pubKey ObjectHandle
 		return nil, 0, err
 	}
 
-	var buf unsafe.Pointer
-	var ctPtr C.CK_BYTE_PTR
+	// A KEM ciphertext is never empty. A zero length would also leave the
+	// data pass with a NULL buffer, which asks for the length again instead
+	// of encapsulating.
+	if ctLen == 0 {
+		return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: module reported an empty ciphertext")
+	}
+	// ctLen is module-reported. Bound it by maxOutBuf (as outOp does) and by
+	// the C.int range C.GoBytes accepts, so a bogus length cannot drive an
+	// unbounded allocation or a mis-sized copy.
+	if uint64(ctLen) > maxOutBuf {
+		return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: ciphertext size %d exceeds limit %d", uint64(ctLen), uint64(maxOutBuf))
+	}
+	if uint64(ctLen) > math.MaxInt32 {
+		return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: ciphertext size %d exceeds C.int range", uint64(ctLen))
+	}
 	// allocLen is the capacity of buf. Keep it apart from ctLen, which the data
 	// pass overwrites with whatever length the module reports.
 	allocLen := ctLen
-	if ctLen > 0 {
-		// ctLen is module-reported. Bound it by maxOutBuf (as outOp does) and
-		// by the C.int range C.GoBytes accepts, so a bogus length cannot drive
-		// an unbounded allocation or a mis-sized copy.
-		if uint64(ctLen) > maxOutBuf {
-			return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: ciphertext size %d exceeds limit %d", uint64(ctLen), uint64(maxOutBuf))
-		}
-		if uint64(ctLen) > math.MaxInt32 {
-			return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: ciphertext size %d exceeds C.int range", uint64(ctLen))
-		}
-		buf = cMalloc(ctLen)
-		defer C.free(buf)
-		ctPtr = (C.CK_BYTE_PTR)(buf)
-	}
+	buf := cMalloc(ctLen)
+	defer C.free(buf)
 	rv = C.ck_encapsulate_key(mod, C.CK_SESSION_HANDLE(sh), mech,
-		C.CK_OBJECT_HANDLE(pubKey), arr, n, ctPtr, &ctLen, &key)
+		C.CK_OBJECT_HANDLE(pubKey), arr, n, (C.CK_BYTE_PTR)(buf), &ctLen, &key)
 	if err := toError(uint(rv)); err != nil {
 		return nil, 0, err
 	}
-	// A successful data pass must not report more ciphertext than the buffer
-	// it was given; C.GoBytes would otherwise read past the allocation (or
-	// from NULL when the sizing pass reported zero). The module has already
-	// created the key, so destroy it rather than hand back an orphan.
-	if ctLen > allocLen {
-		_ = C.ck_destroy_object(mod, C.CK_SESSION_HANDLE(sh), key)
-		return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: module reported ciphertext size %d exceeding buffer %d", uint64(ctLen), uint64(allocLen))
+	// A successful data pass must report a ciphertext that fits the buffer it
+	// was given, and is not empty, and a key; C.GoBytes would otherwise read
+	// past the allocation. The module may already have created the key, so
+	// destroy it rather than hand back an orphan.
+	if ctLen == 0 || ctLen > allocLen || key == C.CK_INVALID_HANDLE {
+		if key != C.CK_INVALID_HANDLE {
+			_ = C.ck_destroy_object(mod, C.CK_SESSION_HANDLE(sh), key)
+		}
+		return nil, 0, fmt.Errorf("cryptoki: EncapsulateKey: module reported ciphertext size %d for a %d-byte buffer, and key handle %d",
+			uint64(ctLen), uint64(allocLen), uint64(key))
 	}
-	var ct []byte
-	if ctLen > 0 {
-		ct = C.GoBytes(buf, C.int(ctLen))
-	}
-	return ct, ObjectHandle(key), nil
+	return C.GoBytes(buf, C.int(ctLen)), ObjectHandle(key), nil
 }
 
 // DecapsulateKey runs a KEM decapsulation (C_DecapsulateKey): it recovers the
