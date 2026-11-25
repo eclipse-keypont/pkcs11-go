@@ -42,7 +42,10 @@ func (c *Ctx) UnwrapKey(sh SessionHandle, m *Mechanism, unwrappingKey ObjectHand
 	defer freeMech()
 	wp, wn := cInput(wrapped)
 	defer free(wp)
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 
 	var key C.CK_OBJECT_HANDLE
@@ -67,7 +70,10 @@ func (c *Ctx) DeriveKey(sh SessionHandle, m *Mechanism, baseKey ObjectHandle, tm
 		return 0, err
 	}
 	defer freeMech()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 
 	var key C.CK_OBJECT_HANDLE

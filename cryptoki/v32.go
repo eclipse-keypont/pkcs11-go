@@ -35,7 +35,10 @@ func (c *Ctx) EncapsulateKey(sh SessionHandle, m *Mechanism, pubKey ObjectHandle
 		return nil, 0, err
 	}
 	defer freeMech()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return nil, 0, err
+	}
 	defer freeAttrs()
 
 	// Sizing pass: a NULL ciphertext buffer asks only for the length and does
@@ -102,7 +105,10 @@ func (c *Ctx) DecapsulateKey(sh SessionHandle, m *Mechanism, privKey ObjectHandl
 		return 0, err
 	}
 	defer freeMech()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 	ct, ctLen := cInput(ciphertext)
 	defer free(ct)
@@ -246,7 +252,10 @@ func (c *Ctx) UnwrapKeyAuthenticated(sh SessionHandle, m *Mechanism, unwrappingK
 	defer free(wp)
 	ad, adLen := cInput(aad)
 	defer free(ad)
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 
 	var key C.CK_OBJECT_HANDLE

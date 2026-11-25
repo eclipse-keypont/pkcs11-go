@@ -21,7 +21,10 @@ func (c *Ctx) GenerateKey(sh SessionHandle, m *Mechanism, tmpl []*Attribute) (Ob
 		return 0, err
 	}
 	defer freeMech()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 
 	var key C.CK_OBJECT_HANDLE
@@ -46,9 +49,15 @@ func (c *Ctx) GenerateKeyPair(sh SessionHandle, m *Mechanism, public, private []
 		return 0, 0, err
 	}
 	defer freeMech()
-	pub, pubN, freePub := cAttributes(public)
+	pub, pubN, freePub, err := cAttributes(public)
+	if err != nil {
+		return 0, 0, err
+	}
 	defer freePub()
-	priv, privN, freePriv := cAttributes(private)
+	priv, privN, freePriv, err := cAttributes(private)
+	if err != nil {
+		return 0, 0, err
+	}
 	defer freePriv()
 
 	var hPub, hPriv C.CK_OBJECT_HANDLE

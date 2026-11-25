@@ -186,11 +186,14 @@ func cMechanism(m *Mechanism) (C.CK_MECHANISM_PTR, func(), error) {
 // the pointer, the element count, and a free func. An empty template yields a
 // nil pointer with count 0. The free func scrubs every value buffer before
 // releasing it, because a template can carry key material (e.g. CKA_VALUE on
-// C_CreateObject / C_UnwrapKey).
-func cAttributes(tmpl []*Attribute) (C.CK_ATTRIBUTE_PTR, C.CK_ULONG, func()) {
+// C_CreateObject / C_UnwrapKey). It refuses what checkTemplate refuses.
+func cAttributes(tmpl []*Attribute) (C.CK_ATTRIBUTE_PTR, C.CK_ULONG, func(), error) {
 	n := len(tmpl)
 	if n == 0 {
-		return nil, 0, func() {}
+		return nil, 0, func() {}, nil
+	}
+	if err := checkTemplate(tmpl); err != nil {
+		return nil, 0, nil, err
 	}
 	// Guard the size computation against overflow: n * sizeof(CK_ATTRIBUTE)
 	// must fit in a size_t. On a 32-bit target a large n would wrap the
@@ -221,7 +224,24 @@ func cAttributes(tmpl []*Attribute) (C.CK_ATTRIBUTE_PTR, C.CK_ULONG, func()) {
 			zfree(b.p, b.n)
 		}
 		C.free(unsafe.Pointer(arr))
+	}, nil
+}
+
+// checkTemplate refuses what cAttributes cannot hand to a module: a nil entry,
+// and an attribute whose value is itself a template (see isTemplateAttribute).
+// Such a value is an array of CK_ATTRIBUTE, each holding a pointer, while
+// cAttributes copies a value as flat bytes: a module would follow whatever
+// pointers those bytes spell.
+func checkTemplate(tmpl []*Attribute) error {
+	for i, a := range tmpl {
+		if a == nil {
+			return fmt.Errorf("cryptoki: template entry %d is nil", i)
+		}
+		if isTemplateAttribute(a.Type) {
+			return fmt.Errorf("cryptoki: %s holds a nested template, which is not supported", AttributeName(a.Type))
+		}
 	}
+	return nil
 }
 
 // cAttributesFits reports whether n elements of elemSize bytes each fit within

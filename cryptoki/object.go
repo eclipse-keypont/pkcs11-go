@@ -59,7 +59,10 @@ func (c *Ctx) CopyObject(sh SessionHandle, obj ObjectHandle, tmpl []*Attribute) 
 		return 0, err
 	}
 	defer release()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 
 	var newObj C.CK_OBJECT_HANDLE
@@ -77,7 +80,10 @@ func (c *Ctx) CreateObject(sh SessionHandle, tmpl []*Attribute) (ObjectHandle, e
 		return 0, err
 	}
 	defer release()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return 0, err
+	}
 	defer freeAttrs()
 
 	var obj C.CK_OBJECT_HANDLE
@@ -137,17 +143,19 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	if n == 0 {
 		return nil, nil
 	}
-	// Array attributes (CKA_WRAP_TEMPLATE, CKA_UNWRAP_TEMPLATE,
-	// CKA_DERIVE_TEMPLATE, CKA_ALLOWED_MECHANISMS, ...) carry arrays of
-	// CK_ATTRIBUTE structures rather than opaque bytes. This API only supports
-	// flat byte values: the value buffer is allocated with uninitialized C.malloc
-	// memory, and a provider supporting nested templates would interpret the
-	// nested pValue/ulValueLen fields as caller-supplied buffer descriptors and
-	// dereference indeterminate pointers. Reject these types up front rather than
-	// passing uninitialized descriptors to native code.
-	for _, a := range tmpl {
-		if isArrayAttribute(a.Type) {
-			return nil, fmt.Errorf("cryptoki: GetAttributeValue: array attribute 0x%x is not supported", a.Type)
+	// Template attributes (CKA_WRAP_TEMPLATE, CKA_UNWRAP_TEMPLATE,
+	// CKA_DERIVE_TEMPLATE, ...) carry arrays of CK_ATTRIBUTE structures rather
+	// than opaque bytes. This API only supports flat byte values, and a provider
+	// supporting nested templates would interpret the nested pValue/ulValueLen
+	// fields as caller-supplied buffer descriptors and dereference them. Reject
+	// these types up front. CKA_ALLOWED_MECHANISMS is a flat array of
+	// CK_MECHANISM_TYPE and is read like any other value.
+	for i, a := range tmpl {
+		if a == nil {
+			return nil, fmt.Errorf("cryptoki: GetAttributeValue: template entry %d is nil", i)
+		}
+		if isTemplateAttribute(a.Type) {
+			return nil, fmt.Errorf("cryptoki: GetAttributeValue: %s holds a nested template, which is not supported", AttributeName(a.Type))
 		}
 	}
 	arr := (*C.CK_ATTRIBUTE)(C.malloc(C.size_t(n) * C.size_t(unsafe.Sizeof(C.CK_ATTRIBUTE{}))))
@@ -237,15 +245,20 @@ func (c *Ctx) GetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 	return out, toError(rv)
 }
 
-// isArrayAttribute reports whether attributes of type t hold an array of
-// CK_ATTRIBUTE structures rather than a flat value. Such types normally carry
-// CKF_ARRAY_ATTRIBUTE, but the v3.2 header defines CKA_ENCAPSULATE_TEMPLATE and
-// CKA_DECAPSULATE_TEMPLATE without it, although they are templates like
-// CKA_WRAP_TEMPLATE and CKA_UNWRAP_TEMPLATE.
-func isArrayAttribute(t uint) bool {
+// isTemplateAttribute reports whether attributes of type t hold a template, an
+// array of CK_ATTRIBUTE structures, rather than a flat value. Such types
+// normally carry CKF_ARRAY_ATTRIBUTE, but the v3.2 header defines
+// CKA_ENCAPSULATE_TEMPLATE and CKA_DECAPSULATE_TEMPLATE without it, although
+// they are templates like CKA_WRAP_TEMPLATE and CKA_UNWRAP_TEMPLATE.
+// CKA_ALLOWED_MECHANISMS carries the flag but is a flat array of
+// CK_MECHANISM_TYPE. Any other type with the flag, a vendor's for instance,
+// counts as a template, since nothing says what its elements are.
+func isTemplateAttribute(t uint) bool {
 	switch t {
 	case CKA_ENCAPSULATE_TEMPLATE, CKA_DECAPSULATE_TEMPLATE:
 		return true
+	case CKA_ALLOWED_MECHANISMS:
+		return false
 	}
 	return t&CKF_ARRAY_ATTRIBUTE != 0
 }
@@ -257,7 +270,10 @@ func (c *Ctx) SetAttributeValue(sh SessionHandle, obj ObjectHandle, tmpl []*Attr
 		return err
 	}
 	defer release()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return err
+	}
 	defer freeAttrs()
 	rv := C.ck_set_attribute_value(m, C.CK_SESSION_HANDLE(sh), C.CK_OBJECT_HANDLE(obj), arr, n)
 	return toError(uint(rv))
@@ -271,7 +287,10 @@ func (c *Ctx) FindObjectsInit(sh SessionHandle, tmpl []*Attribute) error {
 		return err
 	}
 	defer release()
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		return err
+	}
 	defer freeAttrs()
 	return toError(uint(C.ck_find_objects_init(m, C.CK_SESSION_HANDLE(sh), arr, n)))
 }

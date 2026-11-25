@@ -25,7 +25,10 @@ func TestCAttributesNormalTemplate(t *testing.T) {
 		NewAttribute(CKA_CLASS, uint(CKO_SECRET_KEY)),
 		NewAttribute(CKA_LABEL, "k"),
 	}
-	arr, n, freeAttrs := cAttributes(tmpl)
+	arr, n, freeAttrs, err := cAttributes(tmpl)
+	if err != nil {
+		t.Fatalf("cAttributes: %v", err)
+	}
 	defer freeAttrs()
 	if arr == nil {
 		t.Fatal("cAttributes returned nil array for a non-empty template")
@@ -37,10 +40,10 @@ func TestCAttributesNormalTemplate(t *testing.T) {
 
 // TestCAttributesEmptyTemplate checks the empty template short-circuit.
 func TestCAttributesEmptyTemplate(t *testing.T) {
-	arr, n, freeAttrs := cAttributes(nil)
+	arr, n, freeAttrs, err := cAttributes(nil)
 	defer freeAttrs()
-	if arr != nil || n != 0 {
-		t.Fatalf("cAttributes(nil) = (%v, %d), want (nil, 0)", arr, n)
+	if err != nil || arr != nil || n != 0 {
+		t.Fatalf("cAttributes(nil) = (%v, %d, %v), want (nil, 0, nil)", arr, n, err)
 	}
 }
 
