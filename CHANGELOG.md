@@ -93,6 +93,10 @@ independent of the PKCS #11 specification revision the binding targets, which is
 - `p11`: `FindSecretKey` and `FindPrivateKey` no longer find a key with
   `CKA_PRIVATE = false`. Keys this package creates are private by default. For a key that
   is not, call `FindObject` with an explicit template.
+- Build and test toolchain bumped from `go1.27.3` to `go1.27.4` (`toolchain` directive in
+  `go.mod` and `.go-version`). go1.27.4 fixes `GO-2026-6859` in `net/http`, which
+  `govulncheck` flagged on go1.27.3. CI reads the toolchain through
+  `go-version-file: go.mod`.
 
 ### Fixed
 
