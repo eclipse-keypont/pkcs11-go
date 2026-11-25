@@ -140,6 +140,68 @@ func TestFindAndDestroy(t *testing.T) {
 	}
 }
 
+// TestFindKeyRequiresPrivateObject checks that FindSecretKey and
+// FindPrivateKey pass over a key with CKA_PRIVATE = false, which on many tokens
+// a session can create without logging in, and find the private one.
+func TestFindKeyRequiresPrivateObject(t *testing.T) {
+	sess := requireSession(t)
+	const label = "p11-find-private"
+
+	public := append(aesKeyTemplate(label), cryptoki.NewAttribute(cryptoki.CKA_PRIVATE, false))
+	if _, err := sess.GenerateKey(cryptoki.NewMechanism(cryptoki.CKM_AES_KEY_GEN, nil), public); err != nil {
+		t.Fatalf("GenerateKey(CKA_PRIVATE=false): %v", err)
+	}
+	if _, err := sess.FindSecretKey(label); err == nil {
+		t.Fatal("FindSecretKey returned a secret key with CKA_PRIVATE = false")
+	}
+	want, err := sess.GenerateKey(cryptoki.NewMechanism(cryptoki.CKM_AES_KEY_GEN, nil), aesKeyTemplate(label))
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	got, err := sess.FindSecretKey(label)
+	if err != nil {
+		t.Fatalf("FindSecretKey: %v", err)
+	}
+	if got.Object().Handle() != want.Object().Handle() {
+		t.Fatalf("FindSecretKey = handle %d, want %d", got.Object().Handle(), want.Object().Handle())
+	}
+
+	rsaPair := func(private bool) (KeyPair, error) {
+		return sess.GenerateKeyPair(
+			cryptoki.NewMechanism(cryptoki.CKM_RSA_PKCS_KEY_PAIR_GEN, nil),
+			[]*cryptoki.Attribute{
+				cryptoki.NewAttribute(cryptoki.CKA_TOKEN, false),
+				cryptoki.NewAttribute(cryptoki.CKA_LABEL, label),
+				cryptoki.NewAttribute(cryptoki.CKA_VERIFY, true),
+				cryptoki.NewAttribute(cryptoki.CKA_MODULUS_BITS, 2048),
+				cryptoki.NewAttribute(cryptoki.CKA_PUBLIC_EXPONENT, []byte{0x01, 0x00, 0x01}),
+			},
+			[]*cryptoki.Attribute{
+				cryptoki.NewAttribute(cryptoki.CKA_TOKEN, false),
+				cryptoki.NewAttribute(cryptoki.CKA_LABEL, label),
+				cryptoki.NewAttribute(cryptoki.CKA_PRIVATE, private),
+				cryptoki.NewAttribute(cryptoki.CKA_SIGN, true),
+			},
+		)
+	}
+	if _, err := rsaPair(false); err != nil {
+		t.Logf("token refuses a private key with CKA_PRIVATE = false: %v", err)
+	} else if _, err := sess.FindPrivateKey(label); err == nil {
+		t.Fatal("FindPrivateKey returned a private key with CKA_PRIVATE = false")
+	}
+	kp, err := rsaPair(true)
+	if err != nil {
+		t.Fatalf("GenerateKeyPair: %v", err)
+	}
+	priv, err := sess.FindPrivateKey(label)
+	if err != nil {
+		t.Fatalf("FindPrivateKey: %v", err)
+	}
+	if priv.Object().Handle() != kp.Private.Object().Handle() {
+		t.Fatalf("FindPrivateKey = handle %d, want %d", priv.Object().Handle(), kp.Private.Object().Handle())
+	}
+}
+
 func TestCopyObject(t *testing.T) {
 	sess := requireSession(t)
 
