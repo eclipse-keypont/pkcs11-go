@@ -19,6 +19,19 @@ func TestRejectWeakMechanismsRejectsKnownWeak(t *testing.T) {
 		CKM_RC4,
 		CKM_SSL3_SHA1_MAC,
 		CKM_PBE_SHA1_RC4_128,
+		CKM_MD2_RSA_PKCS,
+		CKM_RIPEMD128_RSA_PKCS,
+		CKM_RC2_CBC_PAD,
+		CKM_DES_OFB64,
+		CKM_DES_CFB8,
+		CKM_CDMF_CBC,
+		CKM_CAST3_CBC,
+		CKM_SKIPJACK_CBC64,
+		CKM_SSL3_MASTER_KEY_DERIVE,
+		CKM_TLS_PRF,
+		CKM_PBE_SHA1_DES3_EDE_CBC,
+		CKM_PBA_SHA1_WITH_SHA1_HMAC,
+		CKM_SHA_1_KEY_GEN,
 	}
 	for _, m := range weak {
 		if err := RejectWeakMechanisms(m); err == nil {
@@ -32,6 +45,9 @@ func TestRejectWeakMechanismsRejectsKnownWeak(t *testing.T) {
 		CKM_AES_CBC,
 		CKM_AES_GCM,
 		CKM_ECDSA,
+		CKM_DES3_CBC,
+		CKM_TLS12_KDF,
+		CKM_VENDOR_DEFINED | 1,
 	}
 	for _, m := range strong {
 		if err := RejectWeakMechanisms(m); err != nil {
