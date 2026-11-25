@@ -4,6 +4,7 @@
 package cryptoki
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -68,5 +69,30 @@ func TestInterfaceNegotiation(t *testing.T) {
 				t.Fatalf("SupportsV32() = %v, want %v", got, c.wantV32)
 			}
 		})
+	}
+}
+
+// TestNullFunctionPointer checks that a function-list entry the module left
+// NULL is reported as CKR_FUNCTION_NOT_SUPPORTED rather than called. Every
+// entry of the mock's function lists is NULL.
+func TestNullFunctionPointer(t *testing.T) {
+	ctx, err := New(buildMockModule(t, "MOCK_DEFAULT_32"))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer ctx.Destroy()
+
+	notSupported := Error(CKR_FUNCTION_NOT_SUPPORTED)
+	if err := ctx.Initialize(); !errors.Is(err, notSupported) {
+		t.Errorf("Initialize = %v, want CKR_FUNCTION_NOT_SUPPORTED", err)
+	}
+	if _, err := ctx.GetInfo(); !errors.Is(err, notSupported) {
+		t.Errorf("GetInfo = %v, want CKR_FUNCTION_NOT_SUPPORTED", err)
+	}
+	if _, err := ctx.GetSlotList(false); !errors.Is(err, notSupported) {
+		t.Errorf("GetSlotList = %v, want CKR_FUNCTION_NOT_SUPPORTED", err)
+	}
+	if err := ctx.SessionCancel(1, CKF_ENCRYPT); !errors.Is(err, notSupported) {
+		t.Errorf("SessionCancel = %v, want CKR_FUNCTION_NOT_SUPPORTED", err)
 	}
 }

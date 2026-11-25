@@ -159,6 +159,16 @@ int ck_munlock(void *p, size_t n) {
 		}                                                  \
 	} while (0)
 
+/* REQUIRE_FN answers CKR_FUNCTION_NOT_SUPPORTED for a function-list entry the
+ * module left NULL, instead of calling through it. A module need not fill in
+ * the functions it does not implement, the 3.0 and later lists especially. */
+#define REQUIRE_FN(list, fn)                               \
+	do {                                                   \
+		if ((list)->fn == NULL) {                          \
+			return CKR_FUNCTION_NOT_SUPPORTED;              \
+		}                                                  \
+	} while (0)
+
 /* Try to obtain the 3.2 function list via C_GetInterface("PKCS 11"). Leaves
  * m->fns32 NULL if the module predates 3.0 or does not offer a >= 3.2
  * interface. The default interface name "PKCS 11" is defined by the spec. */
@@ -278,11 +288,13 @@ CK_RV ck_initialize(ckModule *m, CK_FLAGS flags, CK_VOID_PTR reserved) {
 	memset(&args, 0, sizeof(args));
 	args.flags = flags;
 	args.pReserved = reserved;
+	REQUIRE_FN(CK_FNS(m), C_Initialize);
 	return CK_FNS(m)->C_Initialize(&args);
 }
 
 CK_RV ck_finalize(ckModule *m) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Finalize);
 	return CK_FNS(m)->C_Finalize(NULL_PTR);
 }
 
@@ -290,6 +302,7 @@ CK_RV ck_get_info(ckModule *m, alignedCKInfo *out) {
 	REQUIRE_M(m);
 	CK_INFO info;
 	memset(&info, 0, sizeof(info));
+	REQUIRE_FN(CK_FNS(m), C_GetInfo);
 	CK_RV rv = CK_FNS(m)->C_GetInfo(&info);
 	if (rv != CKR_OK) {
 		return rv;
@@ -308,46 +321,54 @@ CK_RV ck_get_info(ckModule *m, alignedCKInfo *out) {
 CK_RV ck_get_slot_list(ckModule *m, CK_BBOOL tokenPresent, CK_SLOT_ID_PTR list,
                        CK_ULONG_PTR count) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetSlotList);
 	return CK_FNS(m)->C_GetSlotList(tokenPresent, list, count);
 }
 
 CK_RV ck_get_slot_info(ckModule *m, CK_SLOT_ID slot, CK_SLOT_INFO_PTR info) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetSlotInfo);
 	return CK_FNS(m)->C_GetSlotInfo(slot, info);
 }
 
 CK_RV ck_get_token_info(ckModule *m, CK_SLOT_ID slot, CK_TOKEN_INFO_PTR info) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetTokenInfo);
 	return CK_FNS(m)->C_GetTokenInfo(slot, info);
 }
 
 CK_RV ck_get_mechanism_list(ckModule *m, CK_SLOT_ID slot,
                             CK_MECHANISM_TYPE_PTR list, CK_ULONG_PTR count) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetMechanismList);
 	return CK_FNS(m)->C_GetMechanismList(slot, list, count);
 }
 
 CK_RV ck_get_mechanism_info(ckModule *m, CK_SLOT_ID slot, CK_MECHANISM_TYPE type,
                             CK_MECHANISM_INFO_PTR info) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetMechanismInfo);
 	return CK_FNS(m)->C_GetMechanismInfo(slot, type, info);
 }
 
 CK_RV ck_init_token(ckModule *m, CK_SLOT_ID slot, CK_UTF8CHAR_PTR pin,
                     CK_ULONG pinLen, CK_UTF8CHAR_PTR label) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_InitToken);
 	return CK_FNS(m)->C_InitToken(slot, pin, pinLen, label);
 }
 
 CK_RV ck_init_pin(ckModule *m, CK_SESSION_HANDLE sh, CK_UTF8CHAR_PTR pin,
                   CK_ULONG pinLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_InitPIN);
 	return CK_FNS(m)->C_InitPIN(sh, pin, pinLen);
 }
 
 CK_RV ck_set_pin(ckModule *m, CK_SESSION_HANDLE sh, CK_UTF8CHAR_PTR oldPin,
                  CK_ULONG oldLen, CK_UTF8CHAR_PTR newPin, CK_ULONG newLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SetPIN);
 	return CK_FNS(m)->C_SetPIN(sh, oldPin, oldLen, newPin, newLen);
 }
 
@@ -356,33 +377,39 @@ CK_RV ck_set_pin(ckModule *m, CK_SESSION_HANDLE sh, CK_UTF8CHAR_PTR oldPin,
 CK_RV ck_open_session(ckModule *m, CK_SLOT_ID slot, CK_FLAGS flags,
                       CK_SESSION_HANDLE_PTR sh) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_OpenSession);
 	return CK_FNS(m)->C_OpenSession(slot, flags, NULL_PTR, NULL_PTR, sh);
 }
 
 CK_RV ck_close_session(ckModule *m, CK_SESSION_HANDLE sh) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_CloseSession);
 	return CK_FNS(m)->C_CloseSession(sh);
 }
 
 CK_RV ck_close_all_sessions(ckModule *m, CK_SLOT_ID slot) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_CloseAllSessions);
 	return CK_FNS(m)->C_CloseAllSessions(slot);
 }
 
 CK_RV ck_get_session_info(ckModule *m, CK_SESSION_HANDLE sh,
                           CK_SESSION_INFO_PTR info) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetSessionInfo);
 	return CK_FNS(m)->C_GetSessionInfo(sh, info);
 }
 
 CK_RV ck_login(ckModule *m, CK_SESSION_HANDLE sh, CK_USER_TYPE user,
                CK_UTF8CHAR_PTR pin, CK_ULONG pinLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Login);
 	return CK_FNS(m)->C_Login(sh, user, pin, pinLen);
 }
 
 CK_RV ck_logout(ckModule *m, CK_SESSION_HANDLE sh) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Logout);
 	return CK_FNS(m)->C_Logout(sh);
 }
 
@@ -391,17 +418,20 @@ CK_RV ck_logout(ckModule *m, CK_SESSION_HANDLE sh) {
 CK_RV ck_create_object(ckModule *m, CK_SESSION_HANDLE sh, CK_ATTRIBUTE_PTR tmpl,
                        CK_ULONG n, CK_OBJECT_HANDLE_PTR obj) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_CreateObject);
 	return CK_FNS(m)->C_CreateObject(sh, tmpl, n, obj);
 }
 
 CK_RV ck_destroy_object(ckModule *m, CK_SESSION_HANDLE sh, CK_OBJECT_HANDLE obj) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DestroyObject);
 	return CK_FNS(m)->C_DestroyObject(sh, obj);
 }
 
 CK_RV ck_get_object_size(ckModule *m, CK_SESSION_HANDLE sh, CK_OBJECT_HANDLE obj,
                          CK_ULONG_PTR size) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetObjectSize);
 	return CK_FNS(m)->C_GetObjectSize(sh, obj, size);
 }
 
@@ -409,6 +439,7 @@ CK_RV ck_get_attribute_value(ckModule *m, CK_SESSION_HANDLE sh,
                              CK_OBJECT_HANDLE obj, CK_ATTRIBUTE_PTR tmpl,
                              CK_ULONG n) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetAttributeValue);
 	return CK_FNS(m)->C_GetAttributeValue(sh, obj, tmpl, n);
 }
 
@@ -416,23 +447,27 @@ CK_RV ck_set_attribute_value(ckModule *m, CK_SESSION_HANDLE sh,
                              CK_OBJECT_HANDLE obj, CK_ATTRIBUTE_PTR tmpl,
                              CK_ULONG n) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SetAttributeValue);
 	return CK_FNS(m)->C_SetAttributeValue(sh, obj, tmpl, n);
 }
 
 CK_RV ck_find_objects_init(ckModule *m, CK_SESSION_HANDLE sh,
                            CK_ATTRIBUTE_PTR tmpl, CK_ULONG n) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_FindObjectsInit);
 	return CK_FNS(m)->C_FindObjectsInit(sh, tmpl, n);
 }
 
 CK_RV ck_find_objects(ckModule *m, CK_SESSION_HANDLE sh, CK_OBJECT_HANDLE_PTR objs,
                       CK_ULONG max, CK_ULONG_PTR count) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_FindObjects);
 	return CK_FNS(m)->C_FindObjects(sh, objs, max, count);
 }
 
 CK_RV ck_find_objects_final(ckModule *m, CK_SESSION_HANDLE sh) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_FindObjectsFinal);
 	return CK_FNS(m)->C_FindObjectsFinal(sh);
 }
 
@@ -441,12 +476,14 @@ CK_RV ck_find_objects_final(ckModule *m, CK_SESSION_HANDLE sh) {
 CK_RV ck_seed_random(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR seed,
                      CK_ULONG len) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SeedRandom);
 	return CK_FNS(m)->C_SeedRandom(sh, seed, len);
 }
 
 CK_RV ck_generate_random(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR buf,
                          CK_ULONG len) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GenerateRandom);
 	return CK_FNS(m)->C_GenerateRandom(sh, buf, len);
 }
 
@@ -454,29 +491,34 @@ CK_RV ck_generate_random(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR buf,
 
 CK_RV ck_digest_init(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DigestInit);
 	return CK_FNS(m)->C_DigestInit(sh, mech);
 }
 
 CK_RV ck_digest(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                 CK_ULONG dataLen, CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Digest);
 	return CK_FNS(m)->C_Digest(sh, data, dataLen, out, outLen);
 }
 
 CK_RV ck_digest_update(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                        CK_ULONG dataLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DigestUpdate);
 	return CK_FNS(m)->C_DigestUpdate(sh, data, dataLen);
 }
 
 CK_RV ck_digest_key(ckModule *m, CK_SESSION_HANDLE sh, CK_OBJECT_HANDLE key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DigestKey);
 	return CK_FNS(m)->C_DigestKey(sh, key);
 }
 
 CK_RV ck_digest_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR out,
                       CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DigestFinal);
 	return CK_FNS(m)->C_DigestFinal(sh, out, outLen);
 }
 
@@ -485,48 +527,56 @@ CK_RV ck_digest_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR out,
 CK_RV ck_encrypt_init(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                       CK_OBJECT_HANDLE key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_EncryptInit);
 	return CK_FNS(m)->C_EncryptInit(sh, mech, key);
 }
 
 CK_RV ck_encrypt(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                  CK_ULONG dataLen, CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Encrypt);
 	return CK_FNS(m)->C_Encrypt(sh, data, dataLen, out, outLen);
 }
 
 CK_RV ck_encrypt_update(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                         CK_ULONG dataLen, CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_EncryptUpdate);
 	return CK_FNS(m)->C_EncryptUpdate(sh, data, dataLen, out, outLen);
 }
 
 CK_RV ck_encrypt_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR out,
                        CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_EncryptFinal);
 	return CK_FNS(m)->C_EncryptFinal(sh, out, outLen);
 }
 
 CK_RV ck_decrypt_init(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                       CK_OBJECT_HANDLE key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DecryptInit);
 	return CK_FNS(m)->C_DecryptInit(sh, mech, key);
 }
 
 CK_RV ck_decrypt(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                  CK_ULONG dataLen, CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Decrypt);
 	return CK_FNS(m)->C_Decrypt(sh, data, dataLen, out, outLen);
 }
 
 CK_RV ck_decrypt_update(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                         CK_ULONG dataLen, CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DecryptUpdate);
 	return CK_FNS(m)->C_DecryptUpdate(sh, data, dataLen, out, outLen);
 }
 
 CK_RV ck_decrypt_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR out,
                        CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DecryptFinal);
 	return CK_FNS(m)->C_DecryptFinal(sh, out, outLen);
 }
 
@@ -535,48 +585,56 @@ CK_RV ck_decrypt_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR out,
 CK_RV ck_sign_init(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                    CK_OBJECT_HANDLE key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SignInit);
 	return CK_FNS(m)->C_SignInit(sh, mech, key);
 }
 
 CK_RV ck_sign(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
               CK_ULONG dataLen, CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Sign);
 	return CK_FNS(m)->C_Sign(sh, data, dataLen, out, outLen);
 }
 
 CK_RV ck_sign_update(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                      CK_ULONG dataLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SignUpdate);
 	return CK_FNS(m)->C_SignUpdate(sh, data, dataLen);
 }
 
 CK_RV ck_sign_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR out,
                     CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SignFinal);
 	return CK_FNS(m)->C_SignFinal(sh, out, outLen);
 }
 
 CK_RV ck_verify_init(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                      CK_OBJECT_HANDLE key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_VerifyInit);
 	return CK_FNS(m)->C_VerifyInit(sh, mech, key);
 }
 
 CK_RV ck_verify(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                 CK_ULONG dataLen, CK_BYTE_PTR sig, CK_ULONG sigLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_Verify);
 	return CK_FNS(m)->C_Verify(sh, data, dataLen, sig, sigLen);
 }
 
 CK_RV ck_verify_update(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                        CK_ULONG dataLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_VerifyUpdate);
 	return CK_FNS(m)->C_VerifyUpdate(sh, data, dataLen);
 }
 
 CK_RV ck_verify_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR sig,
                       CK_ULONG sigLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_VerifyFinal);
 	return CK_FNS(m)->C_VerifyFinal(sh, sig, sigLen);
 }
 
@@ -585,6 +643,7 @@ CK_RV ck_verify_final(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR sig,
 CK_RV ck_generate_key(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                       CK_ATTRIBUTE_PTR tmpl, CK_ULONG n, CK_OBJECT_HANDLE_PTR key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GenerateKey);
 	return CK_FNS(m)->C_GenerateKey(sh, mech, tmpl, n, key);
 }
 
@@ -593,6 +652,7 @@ CK_RV ck_generate_key_pair(ckModule *m, CK_SESSION_HANDLE sh,
                            CK_ULONG nPub, CK_ATTRIBUTE_PTR priv, CK_ULONG nPriv,
                            CK_OBJECT_HANDLE_PTR hPub, CK_OBJECT_HANDLE_PTR hPriv) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GenerateKeyPair);
 	return CK_FNS(m)->C_GenerateKeyPair(sh, mech, pub, nPub, priv, nPriv, hPub, hPriv);
 }
 
@@ -602,6 +662,7 @@ CK_RV ck_wrap_key(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                   CK_OBJECT_HANDLE wrappingKey, CK_OBJECT_HANDLE key,
                   CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_WrapKey);
 	return CK_FNS(m)->C_WrapKey(sh, mech, wrappingKey, key, out, outLen);
 }
 
@@ -610,6 +671,7 @@ CK_RV ck_unwrap_key(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                     CK_ULONG wrappedLen, CK_ATTRIBUTE_PTR tmpl, CK_ULONG n,
                     CK_OBJECT_HANDLE_PTR key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_UnwrapKey);
 	return CK_FNS(m)->C_UnwrapKey(sh, mech, unwrappingKey, wrapped, wrappedLen, tmpl, n, key);
 }
 
@@ -617,6 +679,7 @@ CK_RV ck_derive_key(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mech,
                     CK_OBJECT_HANDLE baseKey, CK_ATTRIBUTE_PTR tmpl, CK_ULONG n,
                     CK_OBJECT_HANDLE_PTR key) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DeriveKey);
 	return CK_FNS(m)->C_DeriveKey(sh, mech, baseKey, tmpl, n, key);
 }
 
@@ -626,6 +689,7 @@ CK_RV ck_copy_object(ckModule *m, CK_SESSION_HANDLE sh, CK_OBJECT_HANDLE obj,
                      CK_ATTRIBUTE_PTR tmpl, CK_ULONG n,
                      CK_OBJECT_HANDLE_PTR newObj) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_CopyObject);
 	return CK_FNS(m)->C_CopyObject(sh, obj, tmpl, n, newObj);
 }
 
@@ -634,6 +698,7 @@ CK_RV ck_copy_object(ckModule *m, CK_SESSION_HANDLE sh, CK_OBJECT_HANDLE obj,
 CK_RV ck_get_operation_state(ckModule *m, CK_SESSION_HANDLE sh,
                              CK_BYTE_PTR state, CK_ULONG_PTR stateLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_GetOperationState);
 	return CK_FNS(m)->C_GetOperationState(sh, state, stateLen);
 }
 
@@ -641,6 +706,7 @@ CK_RV ck_set_operation_state(ckModule *m, CK_SESSION_HANDLE sh,
                              CK_BYTE_PTR state, CK_ULONG stateLen,
                              CK_OBJECT_HANDLE encKey, CK_OBJECT_HANDLE authKey) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SetOperationState);
 	return CK_FNS(m)->C_SetOperationState(sh, state, stateLen, encKey, authKey);
 }
 
@@ -648,6 +714,7 @@ CK_RV ck_set_operation_state(ckModule *m, CK_SESSION_HANDLE sh,
 
 CK_RV ck_wait_for_slot_event(ckModule *m, CK_FLAGS flags, CK_SLOT_ID_PTR slot) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_WaitForSlotEvent);
 	return CK_FNS(m)->C_WaitForSlotEvent(flags, slot, NULL_PTR);
 }
 
@@ -657,6 +724,7 @@ CK_RV ck_digest_encrypt_update(ckModule *m, CK_SESSION_HANDLE sh,
                                CK_BYTE_PTR part, CK_ULONG partLen,
                                CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DigestEncryptUpdate);
 	return CK_FNS(m)->C_DigestEncryptUpdate(sh, part, partLen, out, outLen);
 }
 
@@ -664,6 +732,7 @@ CK_RV ck_decrypt_digest_update(ckModule *m, CK_SESSION_HANDLE sh,
                                CK_BYTE_PTR cipher, CK_ULONG cipherLen,
                                CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DecryptDigestUpdate);
 	return CK_FNS(m)->C_DecryptDigestUpdate(sh, cipher, cipherLen, out, outLen);
 }
 
@@ -671,6 +740,7 @@ CK_RV ck_sign_encrypt_update(ckModule *m, CK_SESSION_HANDLE sh,
                              CK_BYTE_PTR part, CK_ULONG partLen,
                              CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_SignEncryptUpdate);
 	return CK_FNS(m)->C_SignEncryptUpdate(sh, part, partLen, out, outLen);
 }
 
@@ -678,6 +748,7 @@ CK_RV ck_decrypt_verify_update(ckModule *m, CK_SESSION_HANDLE sh,
                                CK_BYTE_PTR cipher, CK_ULONG cipherLen,
                                CK_BYTE_PTR out, CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
+	REQUIRE_FN(CK_FNS(m), C_DecryptVerifyUpdate);
 	return CK_FNS(m)->C_DecryptVerifyUpdate(sh, cipher, cipherLen, out, outLen);
 }
 
@@ -697,6 +768,7 @@ CK_RV ck_encapsulate_key(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mec
                          CK_OBJECT_HANDLE_PTR key) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_EncapsulateKey);
 	return m->fns32->C_EncapsulateKey(sh, mech, pubKey, tmpl, n, ct, ctLen, key);
 }
 
@@ -706,6 +778,7 @@ CK_RV ck_decapsulate_key(ckModule *m, CK_SESSION_HANDLE sh, CK_MECHANISM_PTR mec
                          CK_OBJECT_HANDLE_PTR key) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_DecapsulateKey);
 	return m->fns32->C_DecapsulateKey(sh, mech, privKey, tmpl, n, ct, ctLen, key);
 }
 
@@ -714,6 +787,7 @@ CK_RV ck_verify_signature_init(ckModule *m, CK_SESSION_HANDLE sh,
                                CK_BYTE_PTR sig, CK_ULONG sigLen) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_VerifySignatureInit);
 	return m->fns32->C_VerifySignatureInit(sh, mech, key, sig, sigLen);
 }
 
@@ -721,6 +795,7 @@ CK_RV ck_verify_signature(ckModule *m, CK_SESSION_HANDLE sh, CK_BYTE_PTR data,
                           CK_ULONG dataLen) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_VerifySignature);
 	return m->fns32->C_VerifySignature(sh, data, dataLen);
 }
 
@@ -728,12 +803,14 @@ CK_RV ck_verify_signature_update(ckModule *m, CK_SESSION_HANDLE sh,
                                  CK_BYTE_PTR part, CK_ULONG partLen) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_VerifySignatureUpdate);
 	return m->fns32->C_VerifySignatureUpdate(sh, part, partLen);
 }
 
 CK_RV ck_verify_signature_final(ckModule *m, CK_SESSION_HANDLE sh) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_VerifySignatureFinal);
 	return m->fns32->C_VerifySignatureFinal(sh);
 }
 
@@ -742,12 +819,14 @@ CK_RV ck_get_session_validation_flags(ckModule *m, CK_SESSION_HANDLE sh,
                                       CK_FLAGS_PTR flags) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_GetSessionValidationFlags);
 	return m->fns32->C_GetSessionValidationFlags(sh, type, flags);
 }
 
 CK_RV ck_session_cancel(ckModule *m, CK_SESSION_HANDLE sh, CK_FLAGS flags) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_SessionCancel);
 	return m->fns32->C_SessionCancel(sh, flags);
 }
 
@@ -759,6 +838,7 @@ CK_RV ck_wrap_key_authenticated(ckModule *m, CK_SESSION_HANDLE sh,
                                 CK_ULONG_PTR outLen) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_WrapKeyAuthenticated);
 	return m->fns32->C_WrapKeyAuthenticated(sh, mech, wrappingKey, key, aad,
 	                                        aadLen, out, outLen);
 }
@@ -772,6 +852,7 @@ CK_RV ck_unwrap_key_authenticated(ckModule *m, CK_SESSION_HANDLE sh,
                                   CK_OBJECT_HANDLE_PTR key) {
 	REQUIRE_M(m);
 	REQUIRE_V32(m);
+	REQUIRE_FN(m->fns32, C_UnwrapKeyAuthenticated);
 	return m->fns32->C_UnwrapKeyAuthenticated(sh, mech, unwrappingKey, wrapped,
 	                                          wrappedLen, tmpl, n, aad, aadLen, key);
 }
