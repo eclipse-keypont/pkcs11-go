@@ -5,7 +5,9 @@ package cryptoki
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
+	"io"
 	"testing"
 )
 
@@ -210,5 +212,106 @@ func TestIntegrationAuthenticatedWrap(t *testing.T) {
 	// Tampered associated data must make the unwrap fail authentication.
 	if _, err := testCtx.UnwrapKeyAuthenticated(sh, mech, kek, wrapped, []byte("wrong-context"), unwrapTmpl); err == nil {
 		t.Fatal("UnwrapKeyAuthenticated accepted wrong associated data")
+	}
+}
+
+func TestIntegrationNewSignAdditionalContext(t *testing.T) {
+	sh := requireMech(t, CKM_ML_DSA_KEY_PAIR_GEN, CKM_ML_DSA)
+
+	public := []*Attribute{
+		NewAttribute(CKA_CLASS, CKO_PUBLIC_KEY),
+		NewAttribute(CKA_KEY_TYPE, CKK_ML_DSA),
+		NewAttribute(CKA_TOKEN, true),
+		NewAttribute(CKA_VERIFY, true),
+		NewAttribute(CKA_PARAMETER_SET, CKP_ML_DSA_44),
+	}
+	private := []*Attribute{
+		NewAttribute(CKA_TOKEN, true),
+		NewAttribute(CKA_PRIVATE, true),
+		NewAttribute(CKA_SIGN, true),
+		NewAttribute(CKA_SENSITIVE, true),
+		NewAttribute(CKA_EXTRACTABLE, false),
+	}
+
+	mech := NewMechanism(CKM_ML_DSA_KEY_PAIR_GEN, nil)
+	pub, priv, err := testCtx.GenerateKeyPair(sh, mech, public, private)
+	if err != nil {
+		t.Fatalf("GenerateKeyPair(CKM_ML_DSA_KEY_PAIR_GEN): %v", err)
+	}
+
+	message := []byte("message-to-sign")
+	for _, hedgeVariant := range []uint{CKH_HEDGE_PREFERRED, CKH_HEDGE_REQUIRED, CKH_DETERMINISTIC_REQUIRED} {
+		mech := NewMechanismWithParams(CKM_ML_DSA, NewSignAdditionalContext(hedgeVariant, []byte("some context")))
+		if err := testCtx.SignInit(sh, mech, priv); err != nil {
+			t.Fatalf("initialize ML-DSA signing: %v", err)
+		}
+		sig, err := testCtx.Sign(sh, message)
+		if err != nil {
+			t.Fatalf("sign ML-DSA message: %v", err)
+		}
+
+		if err := testCtx.VerifyInit(sh, mech, pub); err != nil {
+			t.Fatalf("initialize ML-DSA verification: %v", err)
+		}
+		if err := testCtx.Verify(sh, message, sig); err != nil {
+			t.Fatalf("initialize ML-DSA verification: %v", err)
+		}
+	}
+}
+
+func TestIntegrationNeHashSignAdditionalContext(t *testing.T) {
+	sh := requireMech(t, CKM_ML_DSA_KEY_PAIR_GEN, CKM_ML_DSA)
+
+	public := []*Attribute{
+		NewAttribute(CKA_CLASS, CKO_PUBLIC_KEY),
+		NewAttribute(CKA_KEY_TYPE, CKK_ML_DSA),
+		NewAttribute(CKA_TOKEN, true),
+		NewAttribute(CKA_VERIFY, true),
+		NewAttribute(CKA_PARAMETER_SET, CKP_ML_DSA_44),
+	}
+	private := []*Attribute{
+		NewAttribute(CKA_TOKEN, true),
+		NewAttribute(CKA_PRIVATE, true),
+		NewAttribute(CKA_SIGN, true),
+		NewAttribute(CKA_SENSITIVE, true),
+		NewAttribute(CKA_EXTRACTABLE, false),
+	}
+
+	mech := NewMechanism(CKM_ML_DSA_KEY_PAIR_GEN, nil)
+	pub, priv, err := testCtx.GenerateKeyPair(sh, mech, public, private)
+	if err != nil {
+		t.Fatalf("GenerateKeyPair(CKM_ML_DSA_KEY_PAIR_GEN): %v", err)
+	}
+
+	type hashType struct {
+		hash uint
+		size int
+	}
+
+	for hedgeVariant, hash := range map[uint]hashType{
+		CKH_HEDGE_PREFERRED:        {CKM_SHA512, 64},
+		CKH_HEDGE_REQUIRED:         {CKM_SHA3_256, 32},
+		CKH_DETERMINISTIC_REQUIRED: {CKM_SHA512_256, 32},
+	} {
+		mech := NewMechanismWithParams(CKM_HASH_ML_DSA, NewHashSignAdditionalContext(hedgeVariant, hash.hash, []byte("some context")))
+		if err := testCtx.SignInit(sh, mech, priv); err != nil {
+			println(hedgeVariant)
+			t.Fatalf("initialize ML-DSA signing: %v", err)
+		}
+
+		message := make([]byte, hash.size)
+		io.ReadFull(rand.Reader, message)
+
+		sig, err := testCtx.Sign(sh, message)
+		if err != nil {
+			t.Fatalf("sign ML-DSA message: %v", err)
+		}
+
+		if err := testCtx.VerifyInit(sh, mech, pub); err != nil {
+			t.Fatalf("initialize ML-DSA verification: %v", err)
+		}
+		if err := testCtx.Verify(sh, message, sig); err != nil {
+			t.Fatalf("initialize ML-DSA verification: %v", err)
+		}
 	}
 }
