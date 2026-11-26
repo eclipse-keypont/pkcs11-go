@@ -301,3 +301,71 @@ func (p *ecdh1Params) build() (unsafe.Pointer, C.CK_ULONG, func()) {
 		C.free(unsafe.Pointer(ep))
 	}
 }
+
+// ── PQC context and hedge preferences (CK_SIGN_ADDITIONAL_CONTEXT) ───────────
+
+type signAditionalContext struct {
+	hedgeVariant uint
+	pContext     []byte
+}
+
+// NewSignAdditionalContext returns the parameters for the post-quantum
+// signature mechanisms that take a CK_SIGN_ADDITIONAL_CONTEXT (e.g. CKM_ML_DSA
+// and CKM_SLH_DSA): the hedge preference (CKH_HEDGE_PREFERRED,
+// CKH_HEDGE_REQUIRED, or CKH_DETERMINISTIC_REQUIRED) and an optional context
+// string, at most 255 bytes, that is bound to the signature and must match on
+// verification.
+func NewSignAdditionalContext(hedgeVariant uint, context []byte) MechanismParams {
+	return &signAditionalContext{
+		hedgeVariant: hedgeVariant,
+		pContext:     context,
+	}
+}
+
+func (p *signAditionalContext) build() (unsafe.Pointer, C.CK_ULONG, func()) {
+	pp := (*C.CK_SIGN_ADDITIONAL_CONTEXT)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_SIGN_ADDITIONAL_CONTEXT{}))))
+	context, contextLen := cBytes(p.pContext)
+	pp.hedgeVariant = C.CK_HEDGE_TYPE(p.hedgeVariant)
+	pp.pContext = C.CK_BYTE_PTR(context)
+	pp.ulContextLen = C.CK_ULONG(contextLen)
+	return unsafe.Pointer(pp), C.CK_ULONG(unsafe.Sizeof(C.CK_SIGN_ADDITIONAL_CONTEXT{})), func() {
+		zfree(context, contextLen)
+		C.free(unsafe.Pointer(pp))
+	}
+}
+
+// ── PQC context and hedge preferences (CK_HASH_SIGN_ADDITIONAL_CONTEXT) ──────
+
+type hashSignAditionalContext struct {
+	hedgeVariant uint
+	pContext     []byte
+	hash         uint
+}
+
+// NewHashSignAdditionalContext returns the parameters for the pre-hash
+// post-quantum signature mechanisms that take a CK_HASH_SIGN_ADDITIONAL_CONTEXT
+// (e.g. CKM_HASH_ML_DSA and CKM_HASH_SLH_DSA): the hedge preference
+// (CKH_HEDGE_PREFERRED, CKH_HEDGE_REQUIRED, or CKH_DETERMINISTIC_REQUIRED), the
+// mechanism type of the hash used to digest the message (e.g. CKM_SHA512), and
+// an optional context string, at most 255 bytes, that is bound to the signature
+// and must match on verification.
+func NewHashSignAdditionalContext(hedgeVariant uint, hash uint, context []byte) MechanismParams {
+	return &hashSignAditionalContext{
+		hedgeVariant: hedgeVariant,
+		pContext:     context,
+		hash:         hash,
+	}
+}
+
+func (p *hashSignAditionalContext) build() (unsafe.Pointer, C.CK_ULONG, func()) {
+	pp := (*C.CK_HASH_SIGN_ADDITIONAL_CONTEXT)(cMalloc(C.size_t(unsafe.Sizeof(C.CK_HASH_SIGN_ADDITIONAL_CONTEXT{}))))
+	context, contextLen := cBytes(p.pContext)
+	pp.hedgeVariant = C.CK_HEDGE_TYPE(p.hedgeVariant)
+	pp.pContext = C.CK_BYTE_PTR(context)
+	pp.ulContextLen = C.CK_ULONG(contextLen)
+	pp.hash = C.CK_MECHANISM_TYPE(p.hash)
+	return unsafe.Pointer(pp), C.CK_ULONG(unsafe.Sizeof(C.CK_HASH_SIGN_ADDITIONAL_CONTEXT{})), func() {
+		zfree(context, contextLen)
+		C.free(unsafe.Pointer(pp))
+	}
+}

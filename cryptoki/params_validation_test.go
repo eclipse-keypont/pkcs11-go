@@ -71,3 +71,23 @@ func TestGCMParamsFreeIdempotent(t *testing.T) {
 		t.Fatal("Free left the struct allocated")
 	}
 }
+
+func TestNewSignAdditionalContext(t *testing.T) {
+	p1 := NewSignAdditionalContext(CKH_HEDGE_PREFERRED, nil)
+	_, _, done1 := p1.build()
+	done1()
+
+	p2 := NewSignAdditionalContext(CKH_HEDGE_PREFERRED, []byte("context"))
+	_, _, done2 := p2.build()
+	done2()
+}
+
+func TestNewHashSignAdditionalContext(t *testing.T) {
+	p1 := NewHashSignAdditionalContext(CKH_HEDGE_PREFERRED, CKM_HASH_ML_DSA_SHA512, nil)
+	_, _, done1 := p1.build()
+	done1()
+
+	p2 := NewHashSignAdditionalContext(CKH_HEDGE_PREFERRED, CKM_HASH_ML_DSA_SHA512, []byte("context"))
+	_, _, done2 := p2.build()
+	done2()
+}
