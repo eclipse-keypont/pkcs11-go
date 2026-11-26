@@ -32,7 +32,7 @@ func (c *Ctx) Encrypt(sh SessionHandle, data []byte) ([]byte, error) {
 	defer release()
 	p, n := cInput(data)
 	defer zfree(p, n)
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_ENCRYPT), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_encrypt(m, C.CK_SESSION_HANDLE(sh), (C.CK_BYTE_PTR)(p), n, out, outLen)
 	})
 }
@@ -47,7 +47,7 @@ func (c *Ctx) EncryptUpdate(sh SessionHandle, part []byte) ([]byte, error) {
 	defer release()
 	p, n := cInput(part)
 	defer zfree(p, n)
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_ENCRYPT), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_encrypt_update(m, C.CK_SESSION_HANDLE(sh), (C.CK_BYTE_PTR)(p), n, out, outLen)
 	})
 }
@@ -60,7 +60,7 @@ func (c *Ctx) EncryptFinal(sh SessionHandle) ([]byte, error) {
 		return nil, err
 	}
 	defer release()
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_ENCRYPT), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_encrypt_final(m, C.CK_SESSION_HANDLE(sh), out, outLen)
 	})
 }
@@ -90,7 +90,7 @@ func (c *Ctx) Decrypt(sh SessionHandle, cipher []byte) ([]byte, error) {
 	defer release()
 	p, n := cInput(cipher)
 	defer free(p)
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_DECRYPT), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_decrypt(m, C.CK_SESSION_HANDLE(sh), (C.CK_BYTE_PTR)(p), n, out, outLen)
 	})
 }
@@ -105,7 +105,7 @@ func (c *Ctx) DecryptUpdate(sh SessionHandle, part []byte) ([]byte, error) {
 	defer release()
 	p, n := cInput(part)
 	defer free(p)
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_DECRYPT), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_decrypt_update(m, C.CK_SESSION_HANDLE(sh), (C.CK_BYTE_PTR)(p), n, out, outLen)
 	})
 }
@@ -118,7 +118,7 @@ func (c *Ctx) DecryptFinal(sh SessionHandle) ([]byte, error) {
 		return nil, err
 	}
 	defer release()
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_DECRYPT), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_decrypt_final(m, C.CK_SESSION_HANDLE(sh), out, outLen)
 	})
 }

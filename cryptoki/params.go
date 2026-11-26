@@ -37,6 +37,11 @@ type MechanismParams interface {
 // C_Encrypt (UseGCMIVFromHSM / CloudHSM behaviour). Call IV after Encrypt to
 // retrieve the written-back value; call Free once the operation is complete.
 //
+// The caller owns that lifetime. Free guards only the C_EncryptInit or
+// C_DecryptInit call itself (see Free); it cannot tell whether the module still
+// holds the block for the C_Encrypt or C_Decrypt that follows. Calling Free
+// between Init and the end of the operation hands the module freed memory.
+//
 // Vendor compatibility (P18): the OASIS v3.2 CK_GCM_PARAMS has six fields
 // (pIv, ulIvLen, ulIvBits, pAAD, ulAADLen, ulTagBits) and is 48 bytes on LP64
 // (three pointers plus three CK_ULONGs, all 8 bytes). Some older vendor headers
@@ -50,6 +55,10 @@ type GCMParams struct {
 	gp  *C.CK_GCM_PARAMS
 	iv  unsafe.Pointer
 	aad unsafe.Pointer
+	// ivLen and aadLen are the sizes of the iv and aad allocations. The module
+	// can write to gp, so IV and Free never take a pointer or a length from it.
+	ivLen  C.CK_ULONG
+	aadLen C.CK_ULONG
 	// inUse counts outstanding build() calls whose returned free has not yet
 	// run. Free defers the actual release while inUse > 0 so it cannot free the
 	// AAD/IV buffers out from under an in-flight Init (M-P10).
@@ -86,7 +95,7 @@ func NewGCMParams(iv, aad []byte, tagBits int) *GCMParams {
 	gp.pAAD = (C.CK_BYTE_PTR)(aadPtr)
 	gp.ulAADLen = aadLen
 	gp.ulTagBits = C.CK_ULONG(tagBits)
-	return &GCMParams{gp: gp, iv: ivPtr, aad: aadPtr}
+	return &GCMParams{gp: gp, iv: ivPtr, aad: aadPtr, ivLen: ivLen, aadLen: aadLen}
 }
 
 // NewGCMParamsHSMIV returns GCM parameters for operations where the HSM
@@ -112,7 +121,7 @@ func NewGCMParamsHSMIV(ivLen int, aad []byte, tagBits int) *GCMParams {
 	gp.pAAD = (C.CK_BYTE_PTR)(aadPtr)
 	gp.ulAADLen = aadLen
 	gp.ulTagBits = C.CK_ULONG(tagBits)
-	return &GCMParams{gp: gp, iv: ivPtr, aad: aadPtr}
+	return &GCMParams{gp: gp, iv: ivPtr, aad: aadPtr, ivLen: C.CK_ULONG(ivLen), aadLen: aadLen}
 }
 
 // build implements MechanismParams. The returned free func only marks the
@@ -136,15 +145,22 @@ func (p *GCMParams) build() (unsafe.Pointer, C.CK_ULONG, func()) {
 	}
 }
 
-// IV reads the IV currently stored in the C pIv buffer. After C_Encrypt on an
-// HSM that generates its own nonce, this returns the token-written value.
+// IV reads the IV currently stored in the pIv buffer. After C_Encrypt on an
+// HSM that generates its own nonce, this returns the token-written value. It
+// reads the buffer this GCMParams allocated, never further: when the module
+// has reported a shorter ulIvLen, only that many bytes are returned, and a
+// longer one, or a replaced pIv, is ignored.
 func (p *GCMParams) IV() []byte {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.gp == nil || p.gp.pIv == nil || p.gp.ulIvLen == 0 {
+	if p.gp == nil || p.iv == nil {
 		return nil
 	}
-	return C.GoBytes(unsafe.Pointer(p.gp.pIv), C.int(p.gp.ulIvLen))
+	n := min(p.gp.ulIvLen, p.ivLen)
+	if n == 0 {
+		return nil
+	}
+	return C.GoBytes(p.iv, C.int(n))
 }
 
 // Free releases the C memory. Safe to call more than once. Must be called
@@ -152,7 +168,9 @@ func (p *GCMParams) IV() []byte {
 //
 // If a build() is still outstanding (an Init call in flight), Free defers the
 // release until that build's cleanup runs, so it cannot free the AAD/IV buffers
-// while the module is still reading them (M-P10).
+// while the Init call is still reading them (M-P10). That is the only window
+// it covers: once Init has returned, Free releases the memory at once, even if
+// the operation has not finished.
 func (p *GCMParams) Free() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -171,11 +189,9 @@ func (p *GCMParams) freeLocked() {
 	if p.gp == nil {
 		return
 	}
-	ivLen := p.gp.ulIvLen
-	aadLen := p.gp.ulAADLen
-	zfree(p.iv, ivLen)
+	zfree(p.iv, p.ivLen)
 	p.iv = nil
-	zfree(p.aad, aadLen)
+	zfree(p.aad, p.aadLen)
 	p.aad = nil
 	C.free(unsafe.Pointer(p.gp))
 	p.gp = nil

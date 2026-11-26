@@ -168,18 +168,52 @@ func TestInfoULong(t *testing.T) {
 	}
 }
 
-func TestIsArrayAttribute(t *testing.T) {
+// templateTypes are the attribute types whose value is a nested template.
+// The last is a vendor-defined array attribute, which counts as one.
+var templateTypes = []uint{
+	CKA_WRAP_TEMPLATE, CKA_UNWRAP_TEMPLATE, CKA_DERIVE_TEMPLATE,
+	CKA_ENCAPSULATE_TEMPLATE, CKA_DECAPSULATE_TEMPLATE,
+	CKA_VENDOR_DEFINED | CKF_ARRAY_ATTRIBUTE | 1,
+}
+
+func TestIsTemplateAttribute(t *testing.T) {
+	for _, typ := range templateTypes {
+		if !isTemplateAttribute(typ) {
+			t.Errorf("isTemplateAttribute(%s) = false, want true", AttributeName(typ))
+		}
+	}
 	for _, typ := range []uint{
-		CKA_WRAP_TEMPLATE, CKA_UNWRAP_TEMPLATE, CKA_DERIVE_TEMPLATE,
-		CKA_ALLOWED_MECHANISMS, CKA_ENCAPSULATE_TEMPLATE, CKA_DECAPSULATE_TEMPLATE,
+		CKA_CLASS, CKA_VALUE, CKA_LABEL, CKA_ENCAPSULATE, CKA_DECAPSULATE,
+		CKA_ALLOWED_MECHANISMS,
 	} {
-		if !isArrayAttribute(typ) {
-			t.Errorf("isArrayAttribute(%#x) = false, want true", typ)
+		if isTemplateAttribute(typ) {
+			t.Errorf("isTemplateAttribute(%s) = true, want false", AttributeName(typ))
 		}
 	}
-	for _, typ := range []uint{CKA_CLASS, CKA_VALUE, CKA_LABEL, CKA_ENCAPSULATE, CKA_DECAPSULATE} {
-		if isArrayAttribute(typ) {
-			t.Errorf("isArrayAttribute(%#x) = true, want false", typ)
+}
+
+// TestCAttributesRefusesNestedTemplates checks that a template attribute
+// never reaches a module as raw bytes, which it would read as CK_ATTRIBUTE
+// structures holding pointers, and that a nil entry is an error rather than a
+// panic. CKA_ALLOWED_MECHANISMS, a flat array, still goes through.
+func TestCAttributesRefusesNestedTemplates(t *testing.T) {
+	for _, typ := range templateTypes {
+		_, _, _, err := cAttributes([]*Attribute{
+			NewAttribute(CKA_CLASS, uint(CKO_SECRET_KEY)),
+			NewAttribute(typ, make([]byte, 64)),
+		})
+		if err == nil {
+			t.Errorf("cAttributes accepted %s", AttributeName(typ))
 		}
 	}
+	if _, _, _, err := cAttributes([]*Attribute{NewAttribute(CKA_TOKEN, false), nil}); err == nil {
+		t.Error("cAttributes accepted a nil entry")
+	}
+	_, _, freeAttrs, err := cAttributes([]*Attribute{
+		NewAttribute(CKA_ALLOWED_MECHANISMS, append(ckULong(CKM_AES_GCM), ckULong(CKM_AES_CBC_PAD)...)),
+	})
+	if err != nil {
+		t.Fatalf("cAttributes(CKA_ALLOWED_MECHANISMS): %v", err)
+	}
+	freeAttrs()
 }

@@ -84,6 +84,9 @@ func (c *Ctx) GetSlotList(tokenPresent bool) ([]SlotID, error) {
 	if err := toError(uint(C.ck_get_slot_list(m, present, &list[0], &count))); err != nil {
 		return nil, err
 	}
+	if uint64(count) > uint64(len(list)) {
+		return nil, fmt.Errorf("cryptoki: GetSlotList: module reported %d slots for a list of %d", uint64(count), len(list))
+	}
 
 	out := make([]SlotID, count)
 	for i := range out {
@@ -188,6 +191,9 @@ func (c *Ctx) GetMechanismList(slot SlotID) ([]uint, error) {
 	list := make([]C.CK_MECHANISM_TYPE, count)
 	if err := toError(uint(C.ck_get_mechanism_list(m, C.CK_SLOT_ID(slot), &list[0], &count))); err != nil {
 		return nil, err
+	}
+	if uint64(count) > uint64(len(list)) {
+		return nil, fmt.Errorf("cryptoki: GetMechanismList: module reported %d mechanisms for a list of %d", uint64(count), len(list))
 	}
 
 	out := make([]uint, count)

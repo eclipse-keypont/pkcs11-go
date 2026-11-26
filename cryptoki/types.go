@@ -75,14 +75,19 @@ func NewMechanism(mechanism uint, parameter []byte) *Mechanism {
 // NewMechanismWithParams returns a Mechanism whose parameter is a structured
 // CK_*_PARAMS value built by one of the NewGCMParams / NewOAEPParams /
 // NewECDH1DeriveParams / NewPSSParams constructors. A mechanism policy, if
-// installed, is consulted as in NewMechanism, for the mechanism and for the
-// digests the parameter names.
+// installed, is consulted for the mechanism as in NewMechanism, which panics on
+// a rejected mechanism.
+//
+// The digests the parameter names (the OAEP or PSS hash and MGF, the ECDH1 KDF)
+// are judged when the Mechanism is passed to an operation, which then returns
+// the policy's error. They are not checked here: they often come from data, the
+// "alg" header of a JWE for instance, and a panic would let that data crash the
+// process.
 func NewMechanismWithParams(mechanism uint, params MechanismParams) *Mechanism {
-	m := &Mechanism{Mechanism: mechanism, params: params}
-	if err := checkMechanismUse(m); err != nil {
+	if err := checkMechanism(mechanism); err != nil {
 		panic(err)
 	}
-	return m
+	return &Mechanism{Mechanism: mechanism, params: params}
 }
 
 // Attribute is one object attribute (CK_ATTRIBUTE): a CKA_ type and its raw

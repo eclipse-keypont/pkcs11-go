@@ -165,10 +165,15 @@ func (s *Session) GenerateKeyPair(mechanism *cryptoki.Mechanism, publicTemplate,
 	}, nil
 }
 
+// maxFoundObjects bounds the objects one FindObjects call collects. A search
+// ends when the module returns an empty batch; the bound stops one whose
+// module never does.
+const maxFoundObjects = 1 << 20
+
 // FindObjects returns every object matching the template. An empty template
 // matches all objects in the session's view. The whole find sequence
 // (Init→Find…→Final) is held under the session mutex so it cannot interleave
-// with another operation.
+// with another operation. More than maxFoundObjects matches is an error.
 func (s *Session) FindObjects(template []*cryptoki.Attribute) ([]Object, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -185,6 +190,10 @@ func (s *Session) FindObjects(template []*cryptoki.Attribute) ([]Object, error) 
 		}
 		if len(batch) == 0 {
 			break
+		}
+		if len(found)+len(batch) > maxFoundObjects {
+			_ = s.ctx.FindObjectsFinal(s.handle)
+			return nil, fmt.Errorf("p11: FindObjects: more than %d objects matched", maxFoundObjects)
 		}
 		for _, h := range batch {
 			found = append(found, Object{session: s, handle: h})
@@ -213,27 +222,48 @@ func (s *Session) FindObject(template []*cryptoki.Attribute) (Object, error) {
 	}
 }
 
-// FindSecretKey returns the unique secret key with the given label.
+// FindSecretKey returns the unique secret key with the given label that is a
+// private object (CKA_PRIVATE = true), the default for a key this package
+// creates. Only a logged-in user can create a private object, whereas many
+// tokens let any R/W session create a public one, so a public secret key
+// carrying the label says nothing about who made it. The session must be
+// logged in to see private objects. To find a secret key with CKA_PRIVATE =
+// false, call FindObject with an explicit template.
 func (s *Session) FindSecretKey(label string) (SecretKey, error) {
-	o, err := s.findByClassAndLabel(cryptoki.CKO_SECRET_KEY, label)
+	o, err := s.findByClassAndLabel(cryptoki.CKO_SECRET_KEY, label, true)
 	return SecretKey(o), err
 }
 
 // FindPublicKey returns the unique public key with the given label.
+//
+// A public key is normally a public object (CKA_PRIVATE = false), and many
+// tokens let any R/W session create one without logging in, so the label
+// alone does not say who created the key. Before trusting it, for example to
+// verify signatures or to encrypt to it, check it against something you trust,
+// such as its private half or a certificate.
 func (s *Session) FindPublicKey(label string) (PublicKey, error) {
-	o, err := s.findByClassAndLabel(cryptoki.CKO_PUBLIC_KEY, label)
+	o, err := s.findByClassAndLabel(cryptoki.CKO_PUBLIC_KEY, label, false)
 	return PublicKey(o), err
 }
 
-// FindPrivateKey returns the unique private key with the given label.
+// FindPrivateKey returns the unique private key with the given label that is a
+// private object (CKA_PRIVATE = true), the default for a key this package
+// creates. As for FindSecretKey, the session must be logged in, and a private
+// key with CKA_PRIVATE = false needs FindObject with an explicit template.
 func (s *Session) FindPrivateKey(label string) (PrivateKey, error) {
-	o, err := s.findByClassAndLabel(cryptoki.CKO_PRIVATE_KEY, label)
+	o, err := s.findByClassAndLabel(cryptoki.CKO_PRIVATE_KEY, label, true)
 	return PrivateKey(o), err
 }
 
-func (s *Session) findByClassAndLabel(class uint, label string) (Object, error) {
-	return s.FindObject([]*cryptoki.Attribute{
+// findByClassAndLabel returns the unique object of the given class and label,
+// and, when private is set, only among private objects (CKA_PRIVATE = true).
+func (s *Session) findByClassAndLabel(class uint, label string, private bool) (Object, error) {
+	tmpl := []*cryptoki.Attribute{
 		cryptoki.NewAttribute(cryptoki.CKA_CLASS, class),
 		cryptoki.NewAttribute(cryptoki.CKA_LABEL, label),
-	})
+	}
+	if private {
+		tmpl = append(tmpl, cryptoki.NewAttribute(cryptoki.CKA_PRIVATE, true))
+	}
+	return s.FindObject(tmpl)
 }

@@ -14,9 +14,9 @@ import (
 )
 
 // compileTestModule compiles the C source src (relative to this package) into
-// a shared object and returns its absolute path. It skips the test where no C
-// compiler is available.
-func compileTestModule(t *testing.T, src string) string {
+// a shared object, with the given preprocessor defines, and returns its
+// absolute path. It skips the test where no C compiler is available.
+func compileTestModule(t *testing.T, src string, defines ...string) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("the test module is built with a Unix-style toolchain")
@@ -34,7 +34,11 @@ func compileTestModule(t *testing.T, src string) string {
 	}
 	out := filepath.Join(t.TempDir(), "module.so")
 	// #nosec G204 -- the compiler and its arguments are fixed test inputs.
-	cmd := exec.Command(cc, "-shared", "-fPIC", "-I", headers, "-o", out, src, "-lpthread")
+	args := []string{"-shared", "-fPIC", "-I", headers, "-o", out}
+	for _, d := range defines {
+		args = append(args, "-D"+d)
+	}
+	cmd := exec.Command(cc, append(args, src, "-lpthread")...)
 	if b, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("building test module: %v\n%s", err, b)
 	}

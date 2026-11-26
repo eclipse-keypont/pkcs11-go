@@ -33,7 +33,7 @@ func (c *Ctx) Digest(sh SessionHandle, data []byte) ([]byte, error) {
 	defer release()
 	p, n := cInput(data)
 	defer zfree(p, n)
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_DIGEST), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_digest(m, C.CK_SESSION_HANDLE(sh), (C.CK_BYTE_PTR)(p), n, out, outLen)
 	})
 }
@@ -70,7 +70,7 @@ func (c *Ctx) DigestFinal(sh SessionHandle) ([]byte, error) {
 		return nil, err
 	}
 	defer release()
-	return outOp(func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
+	return outOp(endOp(m, sh, CKF_DIGEST), func(out C.CK_BYTE_PTR, outLen *C.CK_ULONG) C.CK_RV {
 		return C.ck_digest_final(m, C.CK_SESSION_HANDLE(sh), out, outLen)
 	})
 }

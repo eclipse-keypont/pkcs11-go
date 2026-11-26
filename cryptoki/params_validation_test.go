@@ -4,6 +4,7 @@
 package cryptoki
 
 import (
+	"bytes"
 	"testing"
 	"unsafe"
 )
@@ -69,5 +70,33 @@ func TestGCMParamsFreeIdempotent(t *testing.T) {
 	p.Free()
 	if p.gp != nil {
 		t.Fatal("Free left the struct allocated")
+	}
+}
+
+// TestGCMParamsIgnoresModuleWrittenFields checks that IV and Free use the
+// sizes and pointers GCMParams allocated, not the ones in the CK_GCM_PARAMS
+// struct, which the module is free to write. A larger ulIvLen or ulAADLen
+// would otherwise make IV read, and Free scrub, past the allocations.
+func TestGCMParamsIgnoresModuleWrittenFields(t *testing.T) {
+	iv := []byte("0123456789ab")
+	p := NewGCMParams(iv, []byte("associated data"), 128)
+	defer p.Free()
+
+	p.gp.ulIvLen <<= 20
+	p.gp.ulAADLen <<= 20
+	if got := p.IV(); !bytes.Equal(got, iv) {
+		t.Fatalf("IV() with an enlarged ulIvLen = %d bytes, want the %d-byte allocation", len(got), len(iv))
+	}
+
+	// A shorter length the module reports is honoured.
+	p.gp.ulIvLen = 8
+	if got := p.IV(); !bytes.Equal(got, iv[:8]) {
+		t.Fatalf("IV() with ulIvLen 8 = %x, want %x", got, iv[:8])
+	}
+
+	// A replaced pointer is not followed.
+	p.gp.pIv = nil
+	if got := p.IV(); !bytes.Equal(got, iv[:8]) {
+		t.Fatalf("IV() with pIv cleared = %x, want %x", got, iv[:8])
 	}
 }
